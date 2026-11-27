@@ -1,0 +1,28 @@
+<div class="sb-auth-page">
+    <div class="sb-auth-bg" aria-hidden="true">
+        <div class="sb-auth-aurora sb-auth-aurora--1"></div>
+        <div class="sb-auth-aurora sb-auth-aurora--2"></div>
+        <div class="sb-auth-dots"></div>
+
+        <div class="sb-auth-float sb-auth-float--1">
+            <img src="/images/hero/book.svg" alt="" width="44" height="36" loading="lazy" />
+        </div>
+        <div class="sb-auth-float sb-auth-float--2">
+            <img src="/images/hero/analytics.svg" alt="" width="38" height="38" loading="lazy" />
+        </div>
+        <div class="sb-auth-float sb-auth-float--3">
+            <img src="/images/hero/lightbulb.svg" alt="" width="38" height="44" loading="lazy" />
+        </div>
+        <div class="sb-auth-float sb-auth-float--4">
+            <img src="/images/hero/checklist.svg" alt="" width="40" height="44" loading="lazy" />
+        </div>
+    </div>
+
+    @ChildContent
+</div>
+
+@code {
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+}
+

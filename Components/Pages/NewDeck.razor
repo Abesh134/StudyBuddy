@@ -1,0 +1,496 @@
+@page "/decks/new"
+@attribute [Authorize]
+
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.Extensions.Options
+@using StudyBuddy.Models
+@using StudyBuddy.Services
+@using StudyBuddy.Services.Documents
+
+@inject IDeckService DeckService
+@inject IDocumentExtractionService ExtractionService
+@inject IOptionsMonitor<DocumentExtractionOptions> ExtractionOptionsMonitor
+@inject NavigationManager NavigationManager
+
+<PageTitle>New Deck - Study Buddy</PageTitle>
+
+<div class="sb-container">
+    <div class="sb-page-header">
+        <div>
+            <h1 class="sb-page-title">Create a Study Deck</h1>
+            <p class="sb-page-subtitle">Paste your notes or upload TXT, Markdown, PDF, Word, PowerPoint, or image files. Review and approve the extracted text before saving.</p>
+        </div>
+        <a class="sb-btn sb-btn-secondary" href="/decks">Back to Decks</a>
+    </div>
+
+    <ErrorMessage Message="@_error" OnDismiss="() => _error = null" />
+
+    <div class="sb-dash-two-col">
+        <section class="sb-card sb-dash-enter">
+            <EditForm Model="_form" OnValidSubmit="SaveDeckAsync">
+                <DataAnnotationsValidator />
+                <ValidationSummary role="alert" />
+
+                <div style="margin-bottom:var(--sb-space-5);">
+                    <label class="sb-auth-label" for="deck-title">Deck title</label>
+                    <InputText id="deck-title"
+                               class="sb-input"
+                               maxlength="150"
+                               placeholder="e.g. Cellular Respiration & Bioenergetics"
+                               @bind-Value="_form.Title" />
+                    <ValidationMessage For="() => _form.Title" />
+                    <div style="font-size:0.78rem;color:var(--sb-muted);margin-top:0.25rem;">
+                        @(_form.Title?.Length ?? 0) / 150 characters
+                    </div>
+                </div>
+
+                <!-- Source Mode Switcher -->
+                <div style="margin-bottom:var(--sb-space-5);">
+                    <span class="sb-auth-label">Note source</span>
+                    <div class="sb-mode-tabs" role="tablist" aria-label="Note input mode">
+                        <button type="button"
+                                role="tab"
+                                aria-selected="@(_sourceType == NoteSourceType.PastedText ? "true" : "false")"
+                                class="sb-mode-tab @(_sourceType == NoteSourceType.PastedText ? "is-active" : "")"
+                                @onclick="() => SwitchMode(NoteSourceType.PastedText)">
+                            Paste Notes
+                        </button>
+                        <button type="button"
+                                role="tab"
+                                aria-selected="@(_sourceType == NoteSourceType.UploadedFile ? "true" : "false")"
+                                class="sb-mode-tab @(_sourceType == NoteSourceType.UploadedFile ? "is-active" : "")"
+                                @onclick="() => SwitchMode(NoteSourceType.UploadedFile)">
+                            Upload Study File
+                        </button>
+                    </div>
+                </div>
+
+                @if (_sourceType == NoteSourceType.UploadedFile)
+                {
+                    <!-- Supported Format Chips with Icons & Size Limits -->
+                    <div class="sb-format-chips" aria-label="Supported file formats and size limits">
+                        <span class="sb-format-chip"><strong>PDF</strong> &le; @FormatMb(ExtOpts.MaxPdfBytes)</span>
+                        <span class="sb-format-chip"><strong>DOCX</strong> &le; @FormatMb(ExtOpts.MaxDocxBytes)</span>
+                        <span class="sb-format-chip"><strong>PPTX</strong> &le; @FormatMb(ExtOpts.MaxPptxBytes)</span>
+                        <span class="sb-format-chip"><strong>TXT / MD</strong> &le; @FormatMb(ExtOpts.MaxTxtBytes)</span>
+                        <span class="sb-format-chip"><strong>JPG / PNG / WebP</strong> &le; @FormatMb(ExtOpts.MaxImageBytes)</span>
+                    </div>
+
+                    <!-- OCR Language Selector (only installed languages offered) -->
+                    <div class="sb-ocr-bar">
+                        @if (_ocrAvailability.IsAvailable)
+                        {
+                            <label for="ocr-lang" style="font-size:0.84rem;font-weight:600;color:var(--sb-navy);">
+                                OCR language (images &amp; scanned PDFs):
+                            </label>
+                            <select id="ocr-lang" class="sb-input" style="max-width:220px;padding:0.4rem 0.65rem;" @bind="_selectedOcrLanguage">
+                                <option value="auto">Auto / Default</option>
+                                @foreach (var lang in _ocrAvailability.AvailableLanguages)
+                                {
+                                    <option value="@lang.Code">@lang.Label</option>
+                                }
+                            </select>
+                        }
+                        else
+                        {
+                            <span style="font-size:0.82rem;color:var(--sb-muted);">
+                                <strong>Local OCR status:</strong> @_ocrAvailability.StatusMessage
+                                Native text extraction for TXT, Markdown, PDF, Word, and PowerPoint works without OCR.
+                            </span>
+                        }
+                    </div>
+
+                    <!-- Animated Drag-and-Drop Upload Area -->
+                    <div class="sb-dropzone @(_isDragActive ? "is-drag-active" : "")"
+                         @ondragenter="() => _isDragActive = true"
+                         @ondragleave="() => _isDragActive = false"
+                         @ondrop="() => _isDragActive = false">
+                        <div class="sb-dropzone-icon" aria-hidden="true">
+                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                <polyline points="17 8 12 3 7 8" />
+                                <line x1="12" y1="3" x2="12" y2="15" />
+                            </svg>
+                        </div>
+
+                        <p style="margin:0 0 0.25rem;font-weight:700;color:var(--sb-navy);">
+                            Drag and drop a study file here, or browse your device
+                        </p>
+                        <p style="margin:0 0 0.9rem;font-size:0.84rem;color:var(--sb-muted);">
+                            PDF, DOCX, PPTX, TXT, MD, JPG, PNG, WebP &middot; Raw files are never stored permanently
+                        </p>
+
+                        <label class="sb-btn sb-btn-secondary sb-btn-sm" for="notes-file" style="cursor:pointer;">
+                            @(_extraction is not null ? "Replace File" : "Browse Files")
+                        </label>
+                        <InputFile @key="_fileInputKey"
+                                   id="notes-file"
+                                   class="sb-file-hidden"
+                                   accept=".txt,.md,.pdf,.docx,.pptx,.jpg,.jpeg,.png,.webp,text/plain,text/markdown,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation,image/jpeg,image/png,image/webp"
+                                   OnChange="HandleFileSelectedAsync" />
+                    </div>
+
+                    @if (_extracting)
+                    {
+                        <div class="sb-card" style="margin-bottom:var(--sb-space-5);padding:var(--sb-space-4);background:var(--sb-blue-soft);border-color:#BFDBFE;">
+                            <LoadingSpinner Label="@_processingStage" Size="sm" Centered="false" />
+                        </div>
+                    }
+                    else if (_extraction is not null && _extraction.Succeeded)
+                    {
+                        <div class="sb-extraction-summary" role="status">
+                            <div style="display:flex;align-items:center;justify-content:space-between;gap:0.75rem;flex-wrap:wrap;margin-bottom:0.65rem;">
+                                <div style="display:flex;align-items:center;gap:0.5rem;">
+                                    <span class="sb-badge sb-badge-success">&#10003; Extraction complete</span>
+                                    <span class="sb-badge sb-badge-blue">@DocumentExtractionResult.GetFormatDisplayName(_extraction.DocumentFormat)</span>
+                                    @if (_extraction.UsedOcr)
+                                    {
+                                        <span class="sb-badge sb-badge-marker">OCR applied (@_extraction.OcrItemsProcessed)</span>
+                                    }
+                                </div>
+                                <button type="button" class="sb-btn sb-btn-ghost sb-btn-sm" style="color:var(--sb-error);" @onclick="RemoveUploadedFile">
+                                    Remove file
+                                </button>
+                            </div>
+
+                            <dl class="sb-extraction-meta">
+                                <div><dt>File</dt><dd>@_extraction.SanitizedFileName</dd></div>
+                                <div><dt>Size</dt><dd>@FormatBytes(_extraction.FileSizeBytes)</dd></div>
+                                @if (_extraction.PageOrSlideCount.HasValue)
+                                {
+                                    <div>
+                                        <dt>@(_extraction.DocumentFormat == SourceDocumentFormat.PowerPointPresentation ? "Slides" : "Pages")</dt>
+                                        <dd>@_extraction.PageOrSlideCount.Value</dd>
+                                    </div>
+                                }
+                                <div><dt>Words</dt><dd>@DocumentExtractionResult.CountWords(_form.NotesText).ToString("N0")</dd></div>
+                                <div><dt>Characters</dt><dd>@_form.NotesText.Length.ToString("N0")</dd></div>
+                            </dl>
+
+                            @if (_extraction.SafeWarnings.Count > 0)
+                            {
+                                <div class="sb-warning-box" role="note">
+                                    <strong>Extraction notes &amp; warnings:</strong>
+                                    <ul>
+                                        @foreach (var w in _extraction.SafeWarnings)
+                                        {
+                                            <li>@w</li>
+                                        }
+                                    </ul>
+                                </div>
+                            }
+                        </div>
+
+                        <div style="margin-bottom:var(--sb-space-5);">
+                            <label class="sb-auth-label" for="deck-extracted-notes">
+                                Review &amp; approve extracted text (editable before saving)
+                            </label>
+                            <InputTextArea id="deck-extracted-notes"
+                                           class="sb-input"
+                                           rows="11"
+                                           @bind-Value="_form.NotesText" />
+                            <ValidationMessage For="() => _form.NotesText" />
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div style="margin-bottom:var(--sb-space-5);">
+                        <label class="sb-auth-label" for="deck-notes">Study notes</label>
+                        <InputTextArea id="deck-notes"
+                                       class="sb-input"
+                                       rows="11"
+                                       placeholder="Paste lecture notes, key definitions, or textbook summaries here..."
+                                       @bind-Value="_form.NotesText" />
+                        <ValidationMessage For="() => _form.NotesText" />
+                    </div>
+                }
+
+                <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:0.75rem;margin-bottom:var(--sb-space-5);font-size:0.82rem;color:var(--sb-muted);">
+                    <span>
+                        @_form.NotesText.Length.ToString("N0") / @ExtOpts.MaxExtractedTextLength.ToString("N0") chars
+                        &middot; @DocumentExtractionResult.CountWords(_form.NotesText).ToString("N0") words
+                    </span>
+                    <span>Approved text is preserved verbatim for SourceSentence matching</span>
+                </div>
+
+                <div style="display:flex;flex-wrap:wrap;gap:0.75rem;">
+                    <button type="submit"
+                            class="sb-btn sb-btn-primary"
+                            disabled="@(_saving || _extracting || string.IsNullOrWhiteSpace(_form.NotesText))">
+                        @(_saving ? "Saving deck..." : "Approve & Save Deck")
+                    </button>
+                    <a class="sb-btn sb-btn-secondary" href="/decks">Cancel</a>
+                </div>
+            </EditForm>
+        </section>
+
+        <!-- Structured & Raw Preview Pane -->
+        <aside class="sb-card sb-dash-enter" aria-labelledby="preview-heading">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;flex-wrap:wrap;margin-bottom:var(--sb-space-3);">
+                <h2 id="preview-heading" style="margin:0;font-size:1.1rem;">Document Preview</h2>
+                <div class="sb-mode-tabs" role="tablist" aria-label="Preview mode">
+                    <button type="button"
+                            role="tab"
+                            aria-selected="@(_previewTab == PreviewTab.Formatted ? "true" : "false")"
+                            class="sb-mode-tab @(_previewTab == PreviewTab.Formatted ? "is-active" : "")"
+                            @onclick="() => _previewTab = PreviewTab.Formatted">
+                        Formatted Preview
+                    </button>
+                    <button type="button"
+                            role="tab"
+                            aria-selected="@(_previewTab == PreviewTab.Raw ? "true" : "false")"
+                            class="sb-mode-tab @(_previewTab == PreviewTab.Raw ? "is-active" : "")"
+                            @onclick="() => _previewTab = PreviewTab.Raw">
+                        Raw Extracted Text
+                    </button>
+                    <button type="button"
+                            role="tab"
+                            aria-selected="@(_previewTab == PreviewTab.Edit ? "true" : "false")"
+                            class="sb-mode-tab @(_previewTab == PreviewTab.Edit ? "is-active" : "")"
+                            @onclick="() => _previewTab = PreviewTab.Edit">
+                        Edit Content
+                    </button>
+                </div>
+            </div>
+
+            @if (_previewTab == PreviewTab.Formatted)
+            {
+                @if (string.IsNullOrWhiteSpace(_form.NotesText))
+                {
+                    <p style="margin:0;color:var(--sb-muted);font-size:0.9rem;">
+                        Paste notes or upload a supported study document (PDF, DOCX, PPTX, TXT, MD, or image) to inspect formatted headings, tables, and mathematical formulas before saving.
+                    </p>
+                }
+                else
+                {
+                    <MarkdownPreview Markdown="@_form.NotesText" AriaLabel="Formatted study notes preview" />
+                }
+            }
+            else if (_previewTab == PreviewTab.Raw)
+            {
+                @if (_extraction is not null && !string.IsNullOrWhiteSpace(_extraction.RawExtractedText))
+                {
+                    <p style="margin:0 0 var(--sb-space-2);font-size:0.8rem;color:var(--sb-muted);">
+                        Original unmodified text extracted from @_extraction.SanitizedFileName (read-only).
+                    </p>
+                    <div class="sb-notes-preview">@_extraction.RawExtractedText</div>
+                }
+                else if (!string.IsNullOrWhiteSpace(_form.NotesText))
+                {
+                    <p style="margin:0 0 var(--sb-space-2);font-size:0.8rem;color:var(--sb-muted);">
+                        Raw pasted text (no file uploaded).
+                    </p>
+                    <div class="sb-notes-preview">@_form.NotesText</div>
+                }
+                else
+                {
+                    <p style="margin:0;color:var(--sb-muted);font-size:0.9rem;">
+                        Upload a study file to compare the raw extracted text against the structured preview.
+                    </p>
+                }
+            }
+            else
+            {
+                <p style="margin:0 0 var(--sb-space-2);font-size:0.8rem;color:var(--sb-muted);">
+                    Edit the canonical Markdown/text that will be saved to your deck. Raw extracted text remains preserved separately.
+                </p>
+                <textarea class="sb-input"
+                          rows="16"
+                          aria-label="Edit canonical deck content"
+                          placeholder="Edit your study notes here..."
+                          @bind="_form.NotesText"
+                          @bind:event="oninput"></textarea>
+            }
+        </aside>
+    </div>
+</div>
+
+@code {
+    private enum PreviewTab
+    {
+        Formatted,
+        Raw,
+        Edit
+    }
+
+    private readonly NewDeckFormModel _form = new();
+    private NoteSourceType _sourceType = NoteSourceType.PastedText;
+    private PreviewTab _previewTab = PreviewTab.Formatted;
+    private DocumentExtractionResult? _extraction;
+    private OcrAvailability _ocrAvailability = new(false, null, Array.Empty<OcrLanguageOption>(), string.Empty);
+    private string _selectedOcrLanguage = "auto";
+    private bool _isDragActive;
+    private bool _extracting;
+    private string _processingStage = "Extracting document text...";
+    private bool _saving;
+    private string? _error;
+    private int _fileInputKey;
+
+    private DocumentExtractionOptions ExtOpts => ExtractionOptionsMonitor.CurrentValue;
+
+    protected override void OnInitialized()
+    {
+        _ocrAvailability = ExtractionService.GetOcrAvailability();
+    }
+
+    private void SwitchMode(NoteSourceType mode)
+    {
+        if (_sourceType == mode)
+        {
+            return;
+        }
+
+        _sourceType = mode;
+        _error = null;
+        if (mode == NoteSourceType.PastedText)
+        {
+            _extraction = null;
+        }
+    }
+
+    private void RemoveUploadedFile()
+    {
+        _extraction = null;
+        _form.NotesText = string.Empty;
+        _error = null;
+        _fileInputKey++;
+    }
+
+    private async Task HandleFileSelectedAsync(InputFileChangeEventArgs e)
+    {
+        _error = null;
+        _extraction = null;
+        var file = e.File;
+        if (file is null)
+        {
+            return;
+        }
+
+        _extracting = true;
+        var ext = Path.GetExtension(file.Name).ToLowerInvariant();
+        _processingStage = ext is ".jpg" or ".jpeg" or ".png" or ".webp"
+            ? "Decoding image and running local OCR..."
+            : ext == ".pdf"
+                ? "Extracting PDF pages (with OCR fallback for scanned pages)..."
+                : "Extracting text from document...";
+        StateHasChanged();
+
+        try
+        {
+            var maxAllowed = Math.Max(ExtOpts.MaxAllowedUploadBytes, 1024L);
+            if (file.Size > maxAllowed)
+            {
+                _error = $"File size ({FormatBytes(file.Size)}) exceeds the maximum upload limit.";
+                return;
+            }
+
+            await using var stream = file.OpenReadStream(maxAllowedSize: maxAllowed);
+            var result = await ExtractionService.ExtractAsync(
+                stream,
+                file.Name,
+                file.Size,
+                _selectedOcrLanguage);
+
+            if (!result.Succeeded)
+            {
+                _error = result.ErrorMessage ?? "Unable to extract text from the selected file.";
+                _form.NotesText = string.Empty;
+                return;
+            }
+
+            _extraction = result;
+            _form.NotesText = result.ExtractedText;
+
+            if (string.IsNullOrWhiteSpace(_form.Title) && !string.IsNullOrWhiteSpace(result.SanitizedFileName))
+            {
+                var inferred = Path.GetFileNameWithoutExtension(result.SanitizedFileName)
+                    .Replace('-', ' ')
+                    .Replace('_', ' ')
+                    .Trim();
+                _form.Title = inferred.Length > 150 ? inferred[..150] : inferred;
+            }
+        }
+        catch (IOException)
+        {
+            _error = "Unable to read the selected file. Check that its size is within the format limit and try again.";
+        }
+        catch (Exception)
+        {
+            _error = "An unexpected error occurred while processing the uploaded file.";
+        }
+        finally
+        {
+            _extracting = false;
+        }
+    }
+
+    private async Task SaveDeckAsync()
+    {
+        if (_saving || _extracting)
+        {
+            return;
+        }
+
+        _saving = true;
+        _error = null;
+        try
+        {
+            var isUpload = _sourceType == NoteSourceType.UploadedFile && _extraction is not null;
+            var request = new CreateDeckRequest(
+                Title: _form.Title,
+                NotesText: _form.NotesText,
+                SourceType: isUpload ? NoteSourceType.UploadedFile : NoteSourceType.PastedText,
+                OriginalFileName: isUpload ? _extraction!.SanitizedFileName : null,
+                DocumentFormat: isUpload ? _extraction!.DocumentFormat : SourceDocumentFormat.PastedNotes,
+                SourcePageOrSlideCount: isUpload ? _extraction!.PageOrSlideCount : null,
+                UsedOcr: isUpload && _extraction!.UsedOcr,
+                RawExtractedText: isUpload ? _extraction!.RawExtractedText : null);
+
+            var result = await DeckService.CreateDeckAsync(request);
+            if (!result.Succeeded)
+            {
+                _error = result.ErrorMessage ?? "Unable to create deck.";
+                return;
+            }
+
+            NavigationManager.NavigateTo($"/decks/{result.Value}");
+        }
+        catch (Exception)
+        {
+            _error = "An unexpected error occurred while saving your deck.";
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private static string FormatMb(long bytes) => $"{Math.Round(bytes / (1024.0 * 1024.0), 1):0.#} MB";
+
+    private static string FormatBytes(long bytes)
+    {
+        if (bytes >= 1024 * 1024)
+        {
+            return $"{bytes / (1024.0 * 1024.0):0.0} MB";
+        }
+
+        if (bytes >= 1024)
+        {
+            return $"{bytes / 1024.0:0.0} KB";
+        }
+
+        return $"{bytes} B";
+    }
+
+    private sealed class NewDeckFormModel
+    {
+        [Required(ErrorMessage = "Deck title is required.")]
+        [MaxLength(150, ErrorMessage = "Deck title must be 150 characters or fewer.")]
+        public string Title { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Study notes are required.")]
+        public string NotesText { get; set; } = string.Empty;
+    }
+}

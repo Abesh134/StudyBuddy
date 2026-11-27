@@ -1,0 +1,179 @@
+@using StudyBuddy.Models
+@using StudyBuddy.Services
+
+@inject ICurrentUserService CurrentUserService
+@inject IUserStreakService StreakService
+
+<header class="sb-topnav" role="banner">
+    <div class="sb-topnav-inner">
+        <AuthorizeView>
+            <Authorized>
+                <a class="sb-brand" href="/dashboard" aria-label="Study Buddy dashboard">
+                    <img src="/images/branding/logo.svg" alt="Study Buddy" class="sb-brand-logo" width="150" height="32" />
+                </a>
+
+                <nav class="sb-nav-links" aria-label="Primary navigation">
+                    <NavLink class="sb-nav-link" ActiveClass="is-active" href="/study" Match="NavLinkMatch.Prefix">Study</NavLink>
+                    <NavLink class="sb-nav-link" ActiveClass="is-active" href="/decks" Match="NavLinkMatch.Prefix">Decks</NavLink>
+                    <NavLink class="sb-nav-link" ActiveClass="is-active" href="/stats" Match="NavLinkMatch.Prefix">Stats</NavLink>
+                </nav>
+
+                <div class="sb-nav-actions">
+                    <span class="sb-streak-pill @(_streak.CurrentStreakDays == 0 ? "sb-streak-pill--inactive" : "")"
+                          title="Your consecutive daily study streak">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                            <path d="M13.5 2.2c.2 3.1-1.6 5.1-3.1 6.7-1.4 1.5-2.6 2.8-2.6 5.1a4.7 4.7 0 0 0 9.4 0c0-2.6-1.4-4.7-2.6-6.2-.2 1.2-.8 2.1-1.6 2.7.8-2.5 1.1-5.4.5-8.3Z" />
+                        </svg>
+                        <span>@_streak.CurrentStreakDays-day streak</span>
+                    </span>
+
+                    <details class="sb-dropdown">
+                        <summary aria-label="Account menu">
+                            <span class="sb-avatar" aria-hidden="true">@GetInitials()</span>
+                            <span class="sb-dropdown-name">@GetDisplayName(context.User.Identity?.Name)</span>
+                            <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z" clip-rule="evenodd" />
+                            </svg>
+                        </summary>
+
+                        <div class="sb-dropdown-menu" role="menu">
+                            <div class="sb-dropdown-header">
+                                <div class="sb-dropdown-header-name">@GetDisplayName(context.User.Identity?.Name)</div>
+                                @if (!string.IsNullOrWhiteSpace(_currentUser?.Email))
+                                {
+                                    <div class="sb-dropdown-header-email">@_currentUser.Email</div>
+                                }
+                            </div>
+
+                            <a class="sb-dropdown-item" href="/settings#profile" role="menuitem">Profile</a>
+                            <a class="sb-dropdown-item" href="/settings" role="menuitem">Settings</a>
+                            <a class="sb-dropdown-item" href="/Account/Manage/ChangePassword" role="menuitem">Change password</a>
+
+                            <div class="sb-dropdown-divider" role="separator"></div>
+
+                            <form action="/Account/Logout" method="post">
+                                <AntiforgeryToken />
+                                <input type="hidden" name="returnUrl" value="/" />
+                                <button type="submit" class="sb-dropdown-item sb-dropdown-item--danger" role="menuitem">
+                                    Log out
+                                </button>
+                            </form>
+                        </div>
+                    </details>
+                </div>
+
+                <details class="sb-mobile-menu">
+                    <summary aria-label="Toggle navigation menu">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                            <line x1="3" y1="6" x2="21" y2="6" />
+                            <line x1="3" y1="12" x2="21" y2="12" />
+                            <line x1="3" y1="18" x2="21" y2="18" />
+                        </svg>
+                    </summary>
+                    <nav class="sb-mobile-drawer" aria-label="Mobile navigation">
+                        <div style="padding:0.25rem 0.5rem 0.5rem;">
+                            <span class="sb-streak-pill @(_streak.CurrentStreakDays == 0 ? "sb-streak-pill--inactive" : "")">
+                                @_streak.CurrentStreakDays-day streak
+                            </span>
+                        </div>
+                        <NavLink class="sb-nav-link" ActiveClass="is-active" href="/dashboard" Match="NavLinkMatch.All">Dashboard</NavLink>
+                        <NavLink class="sb-nav-link" ActiveClass="is-active" href="/study" Match="NavLinkMatch.Prefix">Study</NavLink>
+                        <NavLink class="sb-nav-link" ActiveClass="is-active" href="/decks" Match="NavLinkMatch.Prefix">Decks</NavLink>
+                        <NavLink class="sb-nav-link" ActiveClass="is-active" href="/stats" Match="NavLinkMatch.Prefix">Stats</NavLink>
+                        <div class="sb-dropdown-divider"></div>
+                        <a class="sb-dropdown-item" href="/settings#profile">Profile</a>
+                        <a class="sb-dropdown-item" href="/settings">Settings</a>
+                        <a class="sb-dropdown-item" href="/Account/Manage/ChangePassword">Change password</a>
+                        <div class="sb-dropdown-divider"></div>
+                        <form action="/Account/Logout" method="post">
+                            <AntiforgeryToken />
+                            <input type="hidden" name="returnUrl" value="/" />
+                            <button type="submit" class="sb-dropdown-item sb-dropdown-item--danger">Log out</button>
+                        </form>
+                    </nav>
+                </details>
+            </Authorized>
+            <NotAuthorized>
+                <a class="sb-brand" href="/" aria-label="Study Buddy home">
+                    <img src="/images/branding/logo.svg" alt="Study Buddy" class="sb-brand-logo" width="150" height="32" />
+                </a>
+
+                <nav class="sb-nav-links" aria-label="Public navigation">
+                    <NavLink class="sb-nav-link" ActiveClass="is-active" href="/" Match="NavLinkMatch.All">Home</NavLink>
+                    <a class="sb-nav-link" href="/#features">Features</a>
+                    <a class="sb-nav-link" href="/#how-it-works">How It Works</a>
+                </nav>
+
+                <div class="sb-nav-actions">
+                    <a class="sb-btn sb-btn-secondary sb-btn-sm" href="/Account/Login">Log in</a>
+                    <a class="sb-btn sb-btn-primary sb-btn-sm" href="/Account/Register">Create Account</a>
+                </div>
+
+                <details class="sb-mobile-menu">
+                    <summary aria-label="Toggle navigation menu">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                            <line x1="3" y1="6" x2="21" y2="6" />
+                            <line x1="3" y1="12" x2="21" y2="12" />
+                            <line x1="3" y1="18" x2="21" y2="18" />
+                        </svg>
+                    </summary>
+                    <nav class="sb-mobile-drawer" aria-label="Mobile public navigation">
+                        <NavLink class="sb-nav-link" ActiveClass="is-active" href="/" Match="NavLinkMatch.All">Home</NavLink>
+                        <a class="sb-nav-link" href="/#features">Features</a>
+                        <a class="sb-nav-link" href="/#how-it-works">How It Works</a>
+                        <div class="sb-dropdown-divider"></div>
+                        <a class="sb-btn sb-btn-secondary" href="/Account/Login">Log in</a>
+                        <a class="sb-btn sb-btn-primary" href="/Account/Register">Create Account</a>
+                    </nav>
+                </details>
+            </NotAuthorized>
+        </AuthorizeView>
+    </div>
+</header>
+
+@code {
+    private ApplicationUser? _currentUser;
+    private UserStreakSummary _streak = new(0, false, 0);
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (await CurrentUserService.IsAuthenticatedAsync())
+        {
+            _currentUser = await CurrentUserService.GetCurrentUserAsync();
+            _streak = await StreakService.GetCurrentUserStreakAsync();
+        }
+    }
+
+    private string GetDisplayName(string? identityName)
+    {
+        if (!string.IsNullOrWhiteSpace(_currentUser?.FullName))
+        {
+            return _currentUser.FullName;
+        }
+
+        return string.IsNullOrWhiteSpace(identityName) ? "Account" : identityName;
+    }
+
+    private string GetInitials()
+    {
+        var source = _currentUser?.FullName;
+        if (string.IsNullOrWhiteSpace(source))
+        {
+            source = _currentUser?.Email;
+        }
+
+        if (string.IsNullOrWhiteSpace(source))
+        {
+            return "SB";
+        }
+
+        var parts = source.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length >= 2)
+        {
+            return $"{char.ToUpperInvariant(parts[0][0])}{char.ToUpperInvariant(parts[^1][0])}";
+        }
+
+        return char.ToUpperInvariant(parts[0][0]).ToString();
+    }
+}
+

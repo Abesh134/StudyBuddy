@@ -2,20 +2,86 @@
 @using System.Text
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.AspNetCore.WebUtilities
+@using Microsoft.Extensions.Options
 @using StudyBuddy.Models
+@using StudyBuddy.Services
+@using StudyBuddy.Services.Email
 
 @inject UserManager<ApplicationUser> UserManager
+@inject IEmailNotificationService EmailNotificationService
+@inject IOptionsMonitor<EmailOptions> EmailOptionsMonitor
+@inject NavigationManager NavigationManager
+@inject ILogger<ConfirmEmail> Logger
 
-<PageTitle>Confirm email - Study Buddy</PageTitle>
+<PageTitle>@(_confirmed ? "Email verified" : "Verification issue") - Study Buddy</PageTitle>
 
-<main style="max-width:520px;margin:2rem auto;padding:1.5rem;">
-    <h1>Confirm email</h1>
-    <StatusMessage Message="@_statusMessage" />
-    <p><a href="/Account/Login">Proceed to log in</a></p>
-</main>
+<AuthPageShell>
+    <section class="sb-auth-single" aria-labelledby="confirm-email-heading">
+        <div class="sb-auth-brand">
+            <img src="/images/branding/logo.svg" alt="Study Buddy" width="132" height="28" />
+        </div>
+
+        @if (_confirmed)
+        {
+            <div class="sb-confirm-icon sb-confirm-icon--success" aria-hidden="true">
+                <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path class="sb-check-path" d="M5 13l4.5 4.5L19 7.5" />
+                </svg>
+            </div>
+
+            <h1 id="confirm-email-heading" class="sb-auth-title">
+                Email <span class="sb-marker-underline">verified!</span>
+            </h1>
+
+            <div role="status" class="sb-status-banner">
+                @_statusMessage
+            </div>
+
+            <p style="color:var(--sb-muted);margin:0 0 1.25rem;font-size:0.95rem;">
+                Your private Study Buddy workspace is ready. Sign in to explore your dashboard, organize your study space, and get ready to build your first deck.
+            </p>
+
+            <div class="sb-auth-actions">
+                <a class="sb-btn sb-btn-primary sb-auth-submit" href="/Account/Login?ReturnUrl=%2Fdashboard">
+                    Sign in &amp; Start Learning &rarr;
+                </a>
+            </div>
+        }
+        else
+        {
+            <div class="sb-confirm-icon sb-confirm-icon--error" aria-hidden="true">
+                <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="9" />
+                    <line x1="12" y1="8" x2="12" y2="12.5" />
+                    <circle cx="12" cy="16" r="0.8" fill="currentColor" />
+                </svg>
+            </div>
+
+            <h1 id="confirm-email-heading" class="sb-auth-title">Verification link invalid or expired</h1>
+
+            <div role="alert" class="sb-status-banner sb-status-banner--error">
+                @_statusMessage
+            </div>
+
+            <p style="color:var(--sb-muted);margin:0 0 1.25rem;font-size:0.94rem;">
+                For your security, email verification links expire automatically and can only be used for the account they were issued to. Request a fresh verification link to continue.
+            </p>
+
+            <div class="sb-auth-actions">
+                <a class="sb-btn sb-btn-primary sb-auth-submit" href="/Account/ResendEmailConfirmation">
+                    Request New Verification Email
+                </a>
+                <a class="sb-btn sb-btn-secondary sb-auth-submit" href="/Account/Login">
+                    Back to sign in
+                </a>
+            </div>
+        }
+    </section>
+</AuthPageShell>
 
 @code {
-    private string? _statusMessage;
+    private bool _confirmed;
+    private string _statusMessage = "Invalid or expired verification link.";
 
     [SupplyParameterFromQuery]
     private string? UserId { get; set; }
@@ -27,29 +93,65 @@
     {
         if (string.IsNullOrWhiteSpace(UserId) || string.IsNullOrWhiteSpace(Code))
         {
-            _statusMessage = "Error: Invalid email confirmation link.";
+            _confirmed = false;
+            _statusMessage = "This verification link is incomplete or invalid.";
             return;
         }
 
         var user = await UserManager.FindByIdAsync(UserId);
         if (user is null)
         {
-            _statusMessage = "Error: Unable to verify account confirmation.";
+            _confirmed = false;
+            _statusMessage = "We could not verify this confirmation link. It may have expired or is no longer valid.";
             return;
         }
 
+        string decodedCode;
         try
         {
-            var decodedCode = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(Code));
-            var result = await UserManager.ConfirmEmailAsync(user, decodedCode);
-            _statusMessage = result.Succeeded
-                ? "Thank you for confirming your email. You may now log in."
-                : "Error: Confirming your email failed. The link may have expired.";
+            decodedCode = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(Code));
         }
         catch (FormatException)
         {
-            _statusMessage = "Error: Invalid confirmation token format.";
+            _confirmed = false;
+            _statusMessage = "This verification link has an invalid token format.";
+            return;
+        }
+
+        var wasAlreadyConfirmed = await UserManager.IsEmailConfirmedAsync(user);
+        if (wasAlreadyConfirmed)
+        {
+            // Repeated confirmation link click: keep UX friendly and never send a duplicate welcome email.
+            _confirmed = true;
+            _statusMessage = "Your email address is already verified. You can sign in to continue.";
+            return;
+        }
+
+        var result = await UserManager.ConfirmEmailAsync(user, decodedCode);
+        if (!result.Succeeded)
+        {
+            _confirmed = false;
+            _statusMessage = "Confirming your email failed because the link is invalid or has expired.";
+            return;
+        }
+
+        _confirmed = true;
+        _statusMessage = "Thank you for verifying your email address. Your account is now active.";
+
+        // Trigger one-time automatic welcome email strictly after successful confirmation.
+        // Never allow welcome email failures to block authentication or confirmation.
+        try
+        {
+            var dashboardUrl = TrustedUrlHelper.BuildAbsoluteUrl(
+                EmailOptionsMonitor.CurrentValue.AppBaseUrl,
+                NavigationManager.BaseUri,
+                "/dashboard");
+
+            await EmailNotificationService.SendWelcomeEmailIfNotSentAsync(user, dashboardUrl);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Welcome email dispatch encountered an error after email confirmation for user {UserId}.", user.Id);
         }
     }
 }
-

@@ -24,6 +24,7 @@ public sealed class OwnerScopedDeckService : IOwnerScopedDeckService
         await using var db = await _dbFactory.CreateDbContextAsync(cancellationToken);
         return await db.Decks
             .AsNoTracking()
+            .Include(d => d.Questions)
             .Where(d => d.UserId == userId)
             .OrderByDescending(d => d.UpdatedAtUtc)
             .ToListAsync(cancellationToken);

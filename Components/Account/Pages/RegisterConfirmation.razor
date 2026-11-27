@@ -4,46 +4,111 @@
 @using Microsoft.AspNetCore.WebUtilities
 @using StudyBuddy.Models
 @using StudyBuddy.Services
+@using StudyBuddy.Services.Email
 
 @inject UserManager<ApplicationUser> UserManager
 @inject IStudyBuddyEmailSender EmailSender
 @inject IHostEnvironment HostEnvironment
 @inject NavigationManager NavigationManager
 
-<PageTitle>Registration confirmation - Study Buddy</PageTitle>
+<PageTitle>Check your email - Study Buddy</PageTitle>
 
-<main style="max-width:520px;margin:2rem auto;padding:1.5rem;">
-    <h1>Registration confirmation</h1>
+<AuthPageShell>
+    <section class="sb-auth-single" aria-labelledby="reg-confirm-heading">
+        <div class="sb-auth-brand">
+            <img src="/images/branding/logo.svg" alt="Study Buddy" width="132" height="28" />
+        </div>
 
-    @if (EmailSender.IsConfigured)
-    {
-        <p>Please check your email to confirm your account, then <a href="/Account/Login">log in</a>.</p>
-    }
-    else if (HostEnvironment.IsDevelopment() && !string.IsNullOrEmpty(_devConfirmationLink))
-    {
-        <p>
-            <strong>Development mode:</strong> No email provider is configured, so no real email was sent.
-            Use the development-only link below to confirm your account:
-        </p>
-        <p><a href="@_devConfirmationLink">Confirm account (Development only)</a></p>
-    }
-    else
-    {
-        <p>
-            Your account was created, but no email delivery provider is currently configured on this server.
-            No confirmation email was sent. Please contact an administrator to configure email delivery.
-        </p>
-    }
-</main>
+        <div class="sb-confirm-icon sb-confirm-icon--mail" aria-hidden="true">
+            <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="4" width="20" height="16" rx="2.5" />
+                <path d="m22 7-10 6.5L2 7" />
+            </svg>
+        </div>
+
+        <h1 id="reg-confirm-heading" class="sb-auth-title">
+            Check your <span class="sb-marker-underline">email</span>
+        </h1>
+
+        @if (!string.IsNullOrWhiteSpace(_maskedEmail))
+        {
+            <p style="margin:0.5rem 0 1rem;color:var(--sb-muted);font-size:0.95rem;">
+                Account email: <span class="sb-masked-email">@_maskedEmail</span>
+            </p>
+        }
+
+        @if (string.Equals(Delivery, "restricted", StringComparison.OrdinalIgnoreCase))
+        {
+            <div role="alert" class="sb-status-banner sb-status-banner--error">
+                Your account was created, but the verification email could not be delivered because this development sender (<code>onboarding@resend.dev</code>) can only send to the verified Resend account email address.
+            </div>
+        }
+        else if (string.Equals(Delivery, "failed", StringComparison.OrdinalIgnoreCase))
+        {
+            <div role="alert" class="sb-status-banner sb-status-banner--error">
+                Your account was created, but we could not send the verification email right now. Your account remains unverified until confirmed — please try resending below.
+            </div>
+        }
+        else if (EmailSender.IsConfigured)
+        {
+            <p class="sb-auth-subtitle" style="margin-bottom:1rem;">
+                We submitted a verification email to your address. Open the email and select <strong>Verify Email Address</strong> to activate your private study workspace.
+            </p>
+        }
+        else if (HostEnvironment.IsDevelopment() && !string.IsNullOrEmpty(_devConfirmationLink))
+        {
+            <div class="sb-status-banner">
+                <strong>Development mode:</strong> No email provider is configured, so no real email was sent.
+            </div>
+            <p style="color:var(--sb-muted);margin-bottom:1rem;">
+                Use the development-only link below to confirm your account:
+            </p>
+            <a class="sb-btn sb-btn-primary sb-auth-submit" href="@_devConfirmationLink" style="margin-bottom:0.75rem;">
+                Confirm account (Development only)
+            </a>
+        }
+        else
+        {
+            <div role="alert" class="sb-status-banner sb-status-banner--error">
+                Your account was created, but no email delivery provider is currently configured on this server. No confirmation email was sent.
+            </div>
+            <p style="color:var(--sb-muted);">Please contact an administrator to configure email delivery.</p>
+        }
+
+        <div class="sb-troubleshoot-box">
+            <strong>Did not see the email?</strong>
+            <ul>
+                <li>Check your spam, junk, or promotions folder.</li>
+                <li>Allow a minute for delivery before requesting a new link.</li>
+                <li>Make sure you entered the right email address when registering.</li>
+            </ul>
+        </div>
+
+        <div class="sb-auth-actions">
+            <a class="sb-btn sb-btn-primary sb-auth-submit" href="/Account/ResendEmailConfirmation">
+                Resend verification email
+            </a>
+            <a class="sb-btn sb-btn-secondary sb-auth-submit" href="/Account/Login">
+                Back to sign in
+            </a>
+        </div>
+    </section>
+</AuthPageShell>
 
 @code {
     private string? _devConfirmationLink;
+    private string? _maskedEmail;
 
     [SupplyParameterFromQuery]
     private string? Email { get; set; }
 
+    [SupplyParameterFromQuery]
+    private string? Delivery { get; set; }
+
     protected override async Task OnInitializedAsync()
     {
+        _maskedEmail = TrustedUrlHelper.MaskEmail(Email);
+
         if (EmailSender.IsConfigured || !HostEnvironment.IsDevelopment() || string.IsNullOrWhiteSpace(Email))
         {
             return;
@@ -63,4 +128,3 @@
             new Dictionary<string, object?> { ["userId"] = userId, ["code"] = code });
     }
 }
-

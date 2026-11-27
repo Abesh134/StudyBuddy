@@ -1,58 +1,202 @@
 @page "/Account/Register"
 @using System.ComponentModel.DataAnnotations
 @using System.Text
-@using System.Text.Encodings.Web
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.AspNetCore.WebUtilities
+@using Microsoft.Extensions.Options
 @using StudyBuddy.Models
 @using StudyBuddy.Services
+@using StudyBuddy.Services.Email
 
 @inject UserManager<ApplicationUser> UserManager
+@inject IEmailNotificationService EmailNotificationService
 @inject IStudyBuddyEmailSender EmailSender
+@inject IOptionsMonitor<EmailOptions> EmailOptionsMonitor
 @inject ILogger<Register> Logger
 @inject NavigationManager NavigationManager
 @inject IdentityRedirectManager RedirectManager
 
-<PageTitle>Register - Study Buddy</PageTitle>
+<PageTitle>Create Account - Study Buddy</PageTitle>
 
-<main style="max-width:440px;margin:2rem auto;padding:1.5rem;">
-    <h1>Create account</h1>
+<AuthPageShell>
+    <div class="sb-auth-split">
+        <aside class="sb-auth-aside" aria-label="What you get with Study Buddy">
+            <img src="/images/auth/register-illustration.svg"
+                 alt="Study checklist clipboard with graduation cap"
+                 class="sb-auth-illustration"
+                 width="168"
+                 height="154" />
+            <h2 class="sb-auth-aside-title">Build your personal study space</h2>
+            <ul class="sb-auth-aside-list">
+                <li>
+                    <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path fill-rule="evenodd" d="M16.704 5.29a1 1 0 0 1 .006 1.414l-7.25 7.3a1 1 0 0 1-1.42 0l-3.75-3.75a1 1 0 1 1 1.414-1.414L8.75 11.88l6.54-6.584a1 1 0 0 1 1.414-.006Z" clip-rule="evenodd" />
+                    </svg>
+                    <span><strong>Personalized decks:</strong> Create and organize private study decks for every subject.</span>
+                </li>
+                <li>
+                    <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path fill-rule="evenodd" d="M16.704 5.29a1 1 0 0 1 .006 1.414l-7.25 7.3a1 1 0 0 1-1.42 0l-3.75-3.75a1 1 0 1 1 1.414-1.414L8.75 11.88l6.54-6.584a1 1 0 0 1 1.414-.006Z" clip-rule="evenodd" />
+                    </svg>
+                    <span><strong>AI quizzes:</strong> Generate practice questions grounded directly in your notes.</span>
+                </li>
+                <li>
+                    <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path fill-rule="evenodd" d="M16.704 5.29a1 1 0 0 1 .006 1.414l-7.25 7.3a1 1 0 0 1-1.42 0l-3.75-3.75a1 1 0 1 1 1.414-1.414L8.75 11.88l6.54-6.584a1 1 0 0 1 1.414-.006Z" clip-rule="evenodd" />
+                    </svg>
+                    <span><strong>Real progress tracking:</strong> Follow your streaks, accuracy, and SM-2 mastery.</span>
+                </li>
+            </ul>
+        </aside>
 
-    <StatusMessage Message="@_errorMessage" />
+        <section class="sb-auth-form-pane" aria-labelledby="register-heading">
+            <div class="sb-auth-brand">
+                <img src="/images/branding/logo.svg" alt="Study Buddy" width="132" height="28" />
+            </div>
 
-    <EditForm Model="Input" method="post" OnValidSubmit="RegisterUserAsync" FormName="register">
-        <DataAnnotationsValidator />
-        <ValidationSummary role="alert" />
+            <h1 id="register-heading" class="sb-auth-title">
+                Create your <span class="sb-marker-underline">account</span>
+            </h1>
+            <p class="sb-auth-subtitle">Your private learning journey starts here.</p>
 
-        <div style="margin-bottom:1rem;">
-            <label for="Input.FullName">Full name</label><br />
-            <InputText @bind-Value="Input.FullName" id="Input.FullName" autocomplete="name" aria-required="true" style="width:100%;padding:0.5rem;" />
-            <ValidationMessage For="() => Input.FullName" />
-        </div>
+            <StatusMessage Message="@_errorMessage" />
 
-        <div style="margin-bottom:1rem;">
-            <label for="Input.Email">Email</label><br />
-            <InputText @bind-Value="Input.Email" id="Input.Email" autocomplete="username" aria-required="true" style="width:100%;padding:0.5rem;" />
-            <ValidationMessage For="() => Input.Email" />
-        </div>
+            <EditForm Model="Input" method="post" OnValidSubmit="RegisterUserAsync" FormName="register" data-auth-form="true">
+                <DataAnnotationsValidator />
+                <ValidationSummary role="alert" />
 
-        <div style="margin-bottom:1rem;">
-            <label for="Input.Password">Password</label><br />
-            <InputText type="password" @bind-Value="Input.Password" id="Input.Password" autocomplete="new-password" aria-required="true" style="width:100%;padding:0.5rem;" />
-            <ValidationMessage For="() => Input.Password" />
-        </div>
+                <div class="sb-auth-field">
+                    <label class="sb-auth-label" for="Input.FullName">Full name</label>
+                    <div class="sb-input-wrap">
+                        <span class="sb-input-icon" aria-hidden="true">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M20 21a8 8 0 0 0-16 0" />
+                                <circle cx="12" cy="7" r="4" />
+                            </svg>
+                        </span>
+                        <InputText @bind-Value="Input.FullName"
+                                   id="Input.FullName"
+                                   class="sb-input sb-input--with-icon"
+                                   autocomplete="name"
+                                   placeholder="Enter your name"
+                                   aria-required="true" />
+                    </div>
+                    <ValidationMessage For="() => Input.FullName" />
+                </div>
 
-        <div style="margin-bottom:1rem;">
-            <label for="Input.ConfirmPassword">Confirm password</label><br />
-            <InputText type="password" @bind-Value="Input.ConfirmPassword" id="Input.ConfirmPassword" autocomplete="new-password" aria-required="true" style="width:100%;padding:0.5rem;" />
-            <ValidationMessage For="() => Input.ConfirmPassword" />
-        </div>
+                <div class="sb-auth-field">
+                    <label class="sb-auth-label" for="Input.Email">Email address</label>
+                    <div class="sb-input-wrap">
+                        <span class="sb-input-icon" aria-hidden="true">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="2" y="4" width="20" height="16" rx="2" />
+                                <path d="m22 7-10 6L2 7" />
+                            </svg>
+                        </span>
+                        <InputText @bind-Value="Input.Email"
+                                   id="Input.Email"
+                                   class="sb-input sb-input--with-icon"
+                                   autocomplete="username"
+                                   placeholder="you@example.com"
+                                   aria-required="true" />
+                    </div>
+                    <ValidationMessage For="() => Input.Email" />
+                </div>
 
-        <button type="submit" style="padding:0.5rem 1.25rem;">Register</button>
-    </EditForm>
+                <div class="sb-auth-field">
+                    <label class="sb-auth-label" for="Input.Password">Password</label>
+                    <div class="sb-input-wrap">
+                        <span class="sb-input-icon" aria-hidden="true">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="11" width="18" height="11" rx="2" />
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                            </svg>
+                        </span>
+                        <InputText type="password"
+                                   @bind-Value="Input.Password"
+                                   id="Input.Password"
+                                   class="sb-input sb-input--with-icon sb-input--with-toggle"
+                                   autocomplete="new-password"
+                                   placeholder="Create a password"
+                                   aria-required="true"
+                                   aria-describedby="register-password-hints"
+                                   data-password-strength="true" />
+                        <button type="button"
+                                class="sb-password-toggle"
+                                data-password-toggle="Input.Password"
+                                aria-label="Show password"
+                                aria-pressed="false">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+                                <circle cx="12" cy="12" r="3" />
+                            </svg>
+                        </button>
+                    </div>
+                    <ValidationMessage For="() => Input.Password" />
 
-    <p style="margin-top:1.25rem;">Already have an account? <a href="/Account/Login">Log in</a></p>
-</main>
+                    <div id="register-password-hints" class="sb-strength-wrap" data-strength-meter="true">
+                        <div class="sb-strength-bars" aria-hidden="true">
+                            <span class="sb-strength-bar" data-strength-bar></span>
+                            <span class="sb-strength-bar" data-strength-bar></span>
+                            <span class="sb-strength-bar" data-strength-bar></span>
+                            <span class="sb-strength-bar" data-strength-bar></span>
+                        </div>
+                        <div class="sb-strength-meta">
+                            <span>Password strength hint</span>
+                            <span class="sb-strength-label" data-strength-label aria-live="polite">Enter a password</span>
+                        </div>
+                        <ul class="sb-req-list">
+                            <li class="sb-req-item" data-req="length">8+ characters</li>
+                            <li class="sb-req-item" data-req="upper">Uppercase letter</li>
+                            <li class="sb-req-item" data-req="lower">Lowercase letter</li>
+                            <li class="sb-req-item" data-req="digit">At least 1 number</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="sb-auth-field">
+                    <label class="sb-auth-label" for="Input.ConfirmPassword">Confirm password</label>
+                    <div class="sb-input-wrap">
+                        <span class="sb-input-icon" aria-hidden="true">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="11" width="18" height="11" rx="2" />
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                            </svg>
+                        </span>
+                        <InputText type="password"
+                                   @bind-Value="Input.ConfirmPassword"
+                                   id="Input.ConfirmPassword"
+                                   class="sb-input sb-input--with-icon sb-input--with-toggle"
+                                   autocomplete="new-password"
+                                   placeholder="Repeat your password"
+                                   aria-required="true"
+                                   data-password-confirm="true" />
+                        <button type="button"
+                                class="sb-password-toggle"
+                                data-password-toggle="Input.ConfirmPassword"
+                                aria-label="Show password"
+                                aria-pressed="false">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+                                <circle cx="12" cy="12" r="3" />
+                            </svg>
+                        </button>
+                    </div>
+                    <ValidationMessage For="() => Input.ConfirmPassword" />
+                    <div class="sb-match-hint" data-match-hint aria-live="polite"></div>
+                </div>
+
+                <button type="submit" class="sb-btn sb-btn-primary sb-auth-submit" data-loading-text="Creating account...">
+                    Create account &rarr;
+                </button>
+            </EditForm>
+
+            <div class="sb-auth-footer">
+                <p>Already have an account? <a href="/Account/Login" style="font-weight:700;">Sign in</a></p>
+            </div>
+        </section>
+    </div>
+</AuthPageShell>
 
 @code {
     private string? _errorMessage;
@@ -91,21 +235,39 @@
 
         if (UserManager.Options.SignIn.RequireConfirmedAccount)
         {
+            var deliveryStatus = "notconfigured";
+
             if (EmailSender.IsConfigured)
             {
                 var userId = await UserManager.GetUserIdAsync(user);
                 var code = await UserManager.GenerateEmailConfirmationTokenAsync(user);
                 code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(code));
+
+                var confirmBaseUrl = TrustedUrlHelper.BuildAbsoluteUrl(
+                    EmailOptionsMonitor.CurrentValue.AppBaseUrl,
+                    NavigationManager.BaseUri,
+                    "/Account/ConfirmEmail");
+
                 var callbackUrl = NavigationManager.GetUriWithQueryParameters(
-                    NavigationManager.ToAbsoluteUri("/Account/ConfirmEmail").AbsoluteUri,
+                    confirmBaseUrl,
                     new Dictionary<string, object?> { ["userId"] = userId, ["code"] = code });
 
-                await EmailSender.SendConfirmationLinkAsync(user, email, HtmlEncoder.Default.Encode(callbackUrl));
+                var sendResult = await EmailNotificationService.SendVerificationEmailAsync(user, callbackUrl);
+                deliveryStatus = sendResult.Succeeded
+                    ? "accepted"
+                    : sendResult.Status == EmailSendStatus.DomainRestricted
+                        ? "restricted"
+                        : "failed";
             }
 
             RedirectManager.RedirectTo(
                 "/Account/RegisterConfirmation",
-                new Dictionary<string, object?> { ["email"] = email, ["returnUrl"] = ReturnUrl });
+                new Dictionary<string, object?>
+                {
+                    ["email"] = email,
+                    ["delivery"] = deliveryStatus,
+                    ["returnUrl"] = ReturnUrl
+                });
             return;
         }
 

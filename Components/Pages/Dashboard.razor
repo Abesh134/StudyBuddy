@@ -1,50 +1,247 @@
 @page "/dashboard"
 @attribute [Authorize]
 
-@using StudyBuddy.Models
 @using StudyBuddy.Services
 
-@inject ICurrentUserService CurrentUserService
-@inject IOwnerScopedDeckService DeckService
+@inject IDashboardService DashboardService
 
 <PageTitle>Dashboard - Study Buddy</PageTitle>
 
-<main style="max-width:720px;margin:2rem auto;padding:1.5rem;">
-    <h1>Dashboard</h1>
+<div class="sb-container">
+    <ErrorMessage Message="@_error" OnRetry="LoadAsync" />
 
     @if (_loading)
     {
-        <p>Loading...</p>
+        <LoadingSpinner Label="Loading your personal dashboard..." />
     }
-    else if (_user is not null)
+    else if (_summary is not null)
     {
-        <p>Welcome, <strong>@_user.FullName</strong> (@_user.Email).</p>
-        <p>Your private decks: @_decks.Count</p>
+        <!-- Personalized Greeting & Primary Actions -->
+        <section class="sb-dash-hero sb-dash-enter sb-dash-stagger-1" aria-labelledby="dashboard-greeting">
+            <div>
+                <div class="sb-dash-date">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <rect x="3" y="4" width="18" height="18" rx="2" />
+                        <line x1="16" y1="2" x2="16" y2="6" />
+                        <line x1="8" y1="2" x2="8" y2="6" />
+                        <line x1="3" y1="10" x2="21" y2="10" />
+                    </svg>
+                    <span>@_summary.LocalDateFormatted</span>
+                    <span class="sb-badge sb-badge-muted">@_summary.StudyTimeZoneId</span>
+                </div>
 
-        <p><a href="/Account/Manage/ChangePassword">Change password</a></p>
+                <h1 id="dashboard-greeting" class="sb-page-title">
+                    @_summary.TimeOfDayGreeting, <span class="sb-marker-underline">@_summary.UserFullName</span>
+                </h1>
+                <p class="sb-page-subtitle">
+                    Your private study workspace, decks, and personal learning progress.
+                </p>
+            </div>
 
-        <form action="/Account/Logout" method="post">
-            <AntiforgeryToken />
-            <input type="hidden" name="returnUrl" value="/" />
-            <button type="submit" style="padding:0.4rem 1rem;">Log out</button>
-        </form>
+            <div class="sb-dash-actions">
+                <a class="sb-btn sb-btn-primary" href="/decks/new">Create Deck</a>
+                @if (_summary.ContinueStudyingDeckId.HasValue)
+                {
+                    <a class="sb-btn sb-btn-secondary" href="/study/@_summary.ContinueStudyingDeckId.Value">
+                        Continue Studying &rarr;
+                    </a>
+                }
+                else
+                {
+                    <a class="sb-btn sb-btn-secondary" href="/study">
+                        Continue Studying
+                    </a>
+                }
+            </div>
+        </section>
+
+        <!-- Real Per-User Metrics Grid (Zero Fabricated Metrics) -->
+        <section class="sb-grid sb-grid-stats" aria-label="Personal study statistics" style="margin-bottom:var(--sb-space-6);">
+            <div class="sb-dash-enter sb-dash-stagger-1">
+                <StatCard Label="Study Decks"
+                          Value="@_summary.TotalDecks.ToString()"
+                          Subtext="@(_summary.TotalDecks == 0 ? "No decks created yet" : "Private to your account")"
+                          Accent="blue" />
+            </div>
+
+            <div class="sb-dash-enter sb-dash-stagger-2">
+                <StatCard Label="Generated Questions"
+                          Value="@_summary.TotalQuestions.ToString()"
+                          Subtext="@(_summary.TotalQuestions == 0 ? "Generate questions inside a deck" : "Across your private decks")"
+                          Accent="navy" />
+            </div>
+
+            <div class="sb-dash-enter sb-dash-stagger-3">
+                <StatCard Label="Overall Accuracy"
+                          Value="@(_summary.OverallAccuracyPercent.HasValue ? $"{_summary.OverallAccuracyPercent.Value:F0}%" : "—")"
+                          Subtext="@(_summary.TotalAttempts > 0 ? $"Based on {_summary.TotalAttempts} recorded attempts" : "Available after your first quiz attempt")"
+                          Accent="success" />
+            </div>
+
+            <div class="sb-dash-enter sb-dash-stagger-4">
+                <StatCard Label="Due for Review"
+                          Value="@_summary.DueReviewCount.ToString()"
+                          Subtext="@(_summary.DueReviewCount > 0 ? "Cards ready for SM-2 review" : "No cards currently due")"
+                          Accent="marker" />
+            </div>
+
+            <div class="sb-dash-enter sb-dash-stagger-5">
+                <StatCard Label="Daily Streak"
+                          Value="@($"{_summary.DailyStreakDays}d")"
+                          Subtext="@(_summary.StudiedToday ? "Studied today — keep it going" : "Complete a quiz question today")"
+                          Accent="marker" />
+            </div>
+        </section>
+
+        <!-- Getting Started Guidance for New Users -->
+        @if (_summary.TotalDecks == 0)
+        {
+            <section class="sb-guide-card sb-dash-enter sb-dash-stagger-3" aria-labelledby="getting-started-heading">
+                <div>
+                    <span class="sb-badge sb-badge-marker" style="margin-bottom:0.5rem;">Getting Started</span>
+                    <h2 id="getting-started-heading" style="margin:0 0 0.35rem;font-size:1.35rem;">
+                        Welcome to your private Study Buddy workspace
+                    </h2>
+                    <p style="margin:0;color:var(--sb-muted);font-size:0.95rem;">
+                        Follow these steps to turn your notes into durable long-term memory:
+                    </p>
+                    <ol class="sb-guide-steps">
+                        <li><strong>Create your first deck</strong> from pasted notes or an uploaded text file.</li>
+                        <li><strong>Study in split-view</strong> to answer questions alongside highlighted source sentences.</li>
+                        <li><strong>Review due cards</strong> with SM-2 spaced repetition and track accuracy over time.</li>
+                    </ol>
+                    <div class="sb-quick-links">
+                        <a class="sb-btn sb-btn-primary sb-btn-sm" href="/decks/new">Create your first deck</a>
+                        <a class="sb-btn sb-btn-secondary sb-btn-sm" href="/study">Browse Study</a>
+                        <a class="sb-btn sb-btn-secondary sb-btn-sm" href="/review">SM-2 Review</a>
+                        <a class="sb-btn sb-btn-secondary sb-btn-sm" href="/stats">Learning Stats</a>
+                    </div>
+                </div>
+
+                <img src="/images/hero/hero-illustration.svg"
+                     alt="Study Buddy split-view notes and quiz workspace"
+                     width="180"
+                     height="131"
+                     style="display:block;max-width:100%;height:auto;margin:0 auto;" />
+            </section>
+        }
+
+        <!-- Two-Column Workspace: Recent Decks (Left) & Weak Topics / Analytics (Right) -->
+        <div class="sb-dash-two-col">
+            <section aria-labelledby="recent-decks-heading" class="sb-dash-enter sb-dash-stagger-3">
+                <div class="sb-page-header" style="margin-bottom:var(--sb-space-4);">
+                    <h2 id="recent-decks-heading" style="margin:0;font-size:1.35rem;">Recent Study Decks</h2>
+                    <a href="/decks" style="font-weight:600;font-size:0.9rem;">View all decks &rarr;</a>
+                </div>
+
+                @if (_summary.RecentDecks.Count == 0)
+                {
+                    <EmptyState Title="No study decks yet"
+                                Description="Create a private deck to start organizing your notes and generating practice quizzes."
+                                ActionText="Create Deck"
+                                ActionHref="/decks/new" />
+                }
+                else
+                {
+                    <div class="sb-grid sb-grid-decks">
+                        @foreach (var deck in _summary.RecentDecks)
+                        {
+                            <DeckCard Id="deck.Id"
+                                      Title="@deck.Title"
+                                      SourceType="deck.SourceType"
+                                      DocumentFormat="deck.DocumentFormat"
+                                      OriginalFileName="@deck.OriginalFileName"
+                                      SourcePageOrSlideCount="deck.SourcePageOrSlideCount"
+                                      UpdatedAtUtc="deck.UpdatedAtUtc"
+                                      QuestionCount="deck.QuestionCount"
+                                      DueCount="deck.DueCount"
+                                      AccuracyPercent="deck.AccuracyPercent" />
+                        }
+                    </div>
+                }
+            </section>
+
+            <aside aria-labelledby="insights-heading" class="sb-dash-enter sb-dash-stagger-4" style="display:flex;flex-direction:column;gap:var(--sb-space-5);">
+                <div class="sb-card">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;margin-bottom:var(--sb-space-3);">
+                        <h2 id="insights-heading" style="margin:0;font-size:1.15rem;">Weak Topics</h2>
+                        <span class="sb-badge sb-badge-blue">Owner-scoped</span>
+                    </div>
+
+                    @if (_summary.WeakTopics.Count > 0)
+                    {
+                        <p style="margin:0 0 var(--sb-space-4);font-size:0.875rem;color:var(--sb-muted);">
+                            Topics with at least 2 attempts and accuracy below 80%:
+                        </p>
+                        <ul class="sb-topic-list">
+                            @foreach (var topic in _summary.WeakTopics)
+                            {
+                                var widthPct = Math.Clamp((int)Math.Round(topic.AccuracyPercent), 4, 100);
+                                var isWarn = topic.AccuracyPercent >= 60;
+                                <li class="sb-topic-row">
+                                    <div class="sb-topic-head">
+                                        <span>@topic.Topic</span>
+                                        <span>@topic.AccuracyPercent.ToString("F0")% (@topic.CorrectCount/@topic.AttemptCount)</span>
+                                    </div>
+                                    <div class="sb-topic-bar" role="progressbar" aria-valuenow="@widthPct" aria-valuemin="0" aria-valuemax="100" aria-label="@topic.Topic accuracy">
+                                        <div class="sb-topic-bar-fill @(isWarn ? "sb-topic-bar-fill--warn" : "")" style="width:@(widthPct)%;"></div>
+                                    </div>
+                                </li>
+                            }
+                        </ul>
+                    }
+                    else
+                    {
+                        <p style="margin:0 0 var(--sb-space-3);font-size:0.9rem;color:var(--sb-muted);">
+                            Not enough quiz history yet to identify weak topics. Complete practice attempts to see personalized topic focus areas here.
+                        </p>
+                    }
+
+                    <div style="margin-top:var(--sb-space-4);padding-top:var(--sb-space-3);border-top:1px solid var(--sb-border);display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:0.5rem;">
+                        <span style="font-size:0.8rem;color:var(--sb-muted);">Full Chart.js analytics arrive in Part 12.</span>
+                        <a href="/stats" style="font-size:0.85rem;font-weight:700;">View Stats &rarr;</a>
+                    </div>
+                </div>
+
+                <div class="sb-card">
+                    <h2 style="margin:0 0 var(--sb-space-3);font-size:1.1rem;">Quick Navigation</h2>
+                    <div class="sb-quick-links" style="margin-top:0;">
+                        <a class="sb-btn sb-btn-secondary sb-btn-sm" href="/decks/new">New Deck</a>
+                        <a class="sb-btn sb-btn-secondary sb-btn-sm" href="/study">Study Selection</a>
+                        <a class="sb-btn sb-btn-secondary sb-btn-sm" href="/review">Review Queue</a>
+                        <a class="sb-btn sb-btn-secondary sb-btn-sm" href="/stats">Analytics</a>
+                    </div>
+                </div>
+            </aside>
+        </div>
     }
-</main>
+</div>
 
 @code {
     private bool _loading = true;
-    private ApplicationUser? _user;
-    private IReadOnlyList<Deck> _decks = Array.Empty<Deck>();
+    private string? _error;
+    private DashboardSummaryDto? _summary;
 
     protected override async Task OnInitializedAsync()
     {
-        _user = await CurrentUserService.GetCurrentUserAsync();
-        if (_user is not null)
-        {
-            _decks = await DeckService.GetMyDecksAsync();
-        }
+        await LoadAsync();
+    }
 
-        _loading = false;
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _summary = await DashboardService.GetDashboardSummaryAsync();
+        }
+        catch (Exception)
+        {
+            _error = "Unable to load your dashboard right now. Please try again.";
+        }
+        finally
+        {
+            _loading = false;
+        }
     }
 }
-

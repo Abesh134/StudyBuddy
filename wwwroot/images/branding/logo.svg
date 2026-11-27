@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 56" fill="none" role="img" aria-label="Study Buddy">
+  <g transform="translate(2, 3) scale(0.8)">
+    <path d="M13 31.5V44.2C13 46.2 21.5 52 32 52C42.5 52 51 46.2 51 44.2V31.5L32 40.2L13 31.5Z" fill="#1D4ED8"/>
+    <path d="M32 10L4 23.2L32 36.4L60 23.2L32 10Z" fill="#2563EB"/>
+    <path d="M32 23.5L53.5 26.2V45.5" stroke="#FACC15" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="32" cy="23.5" r="2.2" fill="#FACC15"/>
+    <path d="M49.5 44.5H57.5L59 54.5H48L49.5 44.5Z" fill="#FACC15"/>
+  </g>
+  <text x="64" y="38" fill="#172B4D" font-family="'Bricolage Grotesque', 'Segoe UI', system-ui, sans-serif" font-size="28" font-weight="800" letter-spacing="-0.02em">Study Buddy</text>
+</svg>
+

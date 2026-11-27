@@ -1,21 +1,373 @@
 ﻿@page "/"
 
-<PageTitle>Study Buddy</PageTitle>
+<PageTitle>Study Buddy — Study smarter. Remember longer.</PageTitle>
 
-<main style="max-width:640px;margin:2rem auto;padding:1.5rem;">
-    <h1>Study Buddy</h1>
-    <p>Multi-user study decks, quizzes, and spaced repetition.</p>
+<div class="sb-landing">
+    <AnimatedHeroBackground>
+        <!-- Left Hero Copy -->
+        <div>
+            <div class="sb-eyebrow sb-stagger sb-stagger-1">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M12 2L14.4 8.6L21 11L14.4 13.4L12 20L9.6 13.4L3 11L9.6 8.6L12 2Z" />
+                </svg>
+                <span>AI-Powered Study Companion</span>
+            </div>
 
-    <AuthorizeView>
-        <Authorized>
-            <p>Signed in as <strong>@context.User.Identity?.Name</strong>.</p>
-            <p><a href="/dashboard">Go to Dashboard</a></p>
-        </Authorized>
-        <NotAuthorized>
-            <p>
-                <a href="/Account/Login">Log in</a> |
-                <a href="/Account/Register">Register</a>
+            <h1 class="sb-hero-title">
+                <span class="sb-hero-line sb-stagger sb-stagger-2">Study smarter.</span>
+                <span class="sb-hero-line sb-stagger sb-stagger-3">
+                    <span class="sb-marker-underline">Remember longer.</span>
+                </span>
+            </h1>
+
+            <p class="sb-hero-lead sb-stagger sb-stagger-4">
+                Turn your notes into active-recall quizzes, review them in a focused split-view workspace with
+                source highlighting, and lock in long-term retention with SM-2 spaced repetition.
             </p>
-        </NotAuthorized>
-    </AuthorizeView>
-</main>
+
+            <div class="sb-hero-ctas sb-stagger sb-stagger-5">
+                <AuthorizeView>
+                    <Authorized>
+                        <a class="sb-btn sb-btn-primary" href="/dashboard">Go to Dashboard &rarr;</a>
+                        <a class="sb-btn sb-btn-secondary" href="#how-it-works">See How It Works</a>
+                    </Authorized>
+                    <NotAuthorized>
+                        <a class="sb-btn sb-btn-primary" href="/Account/Register">Create Account &rarr;</a>
+                        <a class="sb-btn sb-btn-secondary" href="/Account/Login">Log in</a>
+                        <a class="sb-btn sb-btn-ghost" href="#how-it-works">How It Works</a>
+                    </NotAuthorized>
+                </AuthorizeView>
+            </div>
+
+            <ul class="sb-hero-trust sb-stagger sb-stagger-5" aria-label="Core capabilities">
+                <li>
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path fill-rule="evenodd" d="M16.704 5.29a1 1 0 0 1 .006 1.414l-7.25 7.3a1 1 0 0 1-1.42 0l-3.75-3.75a1 1 0 1 1 1.414-1.414L8.75 11.88l6.54-6.584a1 1 0 0 1 1.414-.006Z" clip-rule="evenodd" />
+                    </svg>
+                    <span>Private personal decks</span>
+                </li>
+                <li>
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path fill-rule="evenodd" d="M16.704 5.29a1 1 0 0 1 .006 1.414l-7.25 7.3a1 1 0 0 1-1.42 0l-3.75-3.75a1 1 0 1 1 1.414-1.414L8.75 11.88l6.54-6.584a1 1 0 0 1 1.414-.006Z" clip-rule="evenodd" />
+                    </svg>
+                    <span>Verbatim source highlighting</span>
+                </li>
+                <li>
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path fill-rule="evenodd" d="M16.704 5.29a1 1 0 0 1 .006 1.414l-7.25 7.3a1 1 0 0 1-1.42 0l-3.75-3.75a1 1 0 1 1 1.414-1.414L8.75 11.88l6.54-6.584a1 1 0 0 1 1.414-.006Z" clip-rule="evenodd" />
+                    </svg>
+                    <span>SM-2 spaced repetition</span>
+                </li>
+            </ul>
+        </div>
+
+        <!-- Right Interactive Sample Split-View Preview -->
+        <aside class="sb-preview-shell sb-stagger sb-stagger-4" aria-label="Interactive sample split-view quiz preview">
+            <div class="sb-preview-topbar">
+                <div style="display:flex;align-items:center;gap:0.6rem;">
+                    <span class="sb-preview-dots" aria-hidden="true">
+                        <span class="sb-preview-dot"></span>
+                        <span class="sb-preview-dot"></span>
+                        <span class="sb-preview-dot"></span>
+                    </span>
+                    <span style="font-weight:700;font-size:0.84rem;color:var(--sb-navy);">Biology Basics</span>
+                </div>
+                <span class="sb-badge sb-badge-marker">Interactive Sample</span>
+            </div>
+
+            <!-- Mobile Accordion (< 860px) -->
+            <details class="sb-preview-notes-accordion">
+                <summary>View sample study notes (source highlight)</summary>
+                <div class="sb-preview-notes-accordion-body">
+                    @RenderHighlightedNotes(CurrentSample.SourceSentence)
+                </div>
+            </details>
+
+            <div class="sb-preview-split">
+                <!-- Desktop Notes Pane -->
+                <div class="sb-preview-notes" aria-label="Sample study notes">
+                    <p class="sb-preview-pane-label">Your Notes</p>
+                    <p style="margin:0;">
+                        @RenderHighlightedNotes(CurrentSample.SourceSentence)
+                    </p>
+                </div>
+
+                <!-- Interactive Quiz Pane -->
+                <div class="sb-preview-quiz" aria-live="polite">
+                    <div class="sb-preview-q-meta">
+                        <span>Sample @(_sampleIndex + 1) of @_samples.Length</span>
+                        <span class="sb-badge sb-badge-blue">@CurrentSample.Topic</span>
+                    </div>
+
+                    <p class="sb-preview-q-text">@CurrentSample.Question</p>
+
+                    <div class="sb-preview-options" role="group" aria-label="Sample answer choices">
+                        @for (var i = 0; i < CurrentSample.Options.Length; i++)
+                        {
+                            var idx = i;
+                            var letter = (char)('A' + idx);
+                            var isSelected = _selectedOption == idx;
+                            var isCorrectOption = idx == CurrentSample.CorrectIndex;
+                            var optionClass = string.Empty;
+                            if (_selectedOption.HasValue)
+                            {
+                                if (isCorrectOption)
+                                {
+                                    optionClass = "sb-preview-option--correct";
+                                }
+                                else if (isSelected)
+                                {
+                                    optionClass = "sb-preview-option--wrong";
+                                }
+                            }
+
+                            <button type="button"
+                                    class="sb-preview-option @optionClass"
+                                    aria-pressed="@isSelected.ToString().ToLowerInvariant()"
+                                    @onclick="() => SelectSampleOption(idx)">
+                                <span class="sb-preview-option-key" aria-hidden="true">@letter</span>
+                                <span>@CurrentSample.Options[idx]</span>
+                            </button>
+                        }
+                    </div>
+
+                    @if (_selectedOption.HasValue)
+                    {
+                        var correct = _selectedOption.Value == CurrentSample.CorrectIndex;
+                        <div class="sb-preview-feedback @(correct ? "sb-preview-feedback--correct" : "sb-preview-feedback--wrong")" role="status">
+                            <strong>@(correct ? "Correct!" : "Not quite.")</strong>
+                            @CurrentSample.Explanation
+                        </div>
+                    }
+                    else
+                    {
+                        <p style="margin:0;font-size:0.8rem;color:var(--sb-muted);">
+                            Select an answer above to test instant feedback and source highlighting.
+                        </p>
+                    }
+
+                    <div class="sb-preview-nav">
+                        <button type="button"
+                                class="sb-btn sb-btn-secondary sb-btn-sm"
+                                disabled="@(_sampleIndex == 0)"
+                                @onclick="PreviousSample">
+                            &larr; Previous
+                        </button>
+                        <button type="button"
+                                class="sb-btn sb-btn-primary sb-btn-sm"
+                                @onclick="NextSample">
+                            @(_sampleIndex == _samples.Length - 1 ? "Restart sample" : "Next") &rarr;
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </AnimatedHeroBackground>
+
+    <!-- Features Section -->
+    <section id="features" class="sb-section" aria-labelledby="features-heading">
+        <div class="sb-container">
+            <div class="sb-section-head" data-reveal>
+                <span class="sb-badge sb-badge-blue" style="margin-bottom:0.75rem;">Built for Deep Retention</span>
+                <h2 id="features-heading" class="sb-section-title">Everything you need to master your notes</h2>
+                <p class="sb-section-desc">
+                    Study Buddy keeps your notes, practice questions, and spaced-repetition schedule in one calm, private workspace.
+                </p>
+            </div>
+
+            <div class="sb-features-grid">
+                <article class="sb-feature-card" data-reveal>
+                    <div class="sb-feature-icon" aria-hidden="true">
+                        <img src="/images/hero/lightbulb.svg" alt="" width="36" height="36" loading="lazy" />
+                    </div>
+                    <h3>AI Quiz Generation</h3>
+                    <p>Paste lecture notes or upload plain-text files to generate structured four-option multiple-choice questions with explanations.</p>
+                </article>
+
+                <article class="sb-feature-card" data-reveal>
+                    <div class="sb-feature-icon" aria-hidden="true">
+                        <img src="/images/hero/book.svg" alt="" width="36" height="36" loading="lazy" />
+                    </div>
+                    <h3>Split-View Study</h3>
+                    <p>Read your original notes alongside each quiz question with automatic marker-yellow highlighting of the exact source sentence.</p>
+                </article>
+
+                <article class="sb-feature-card" data-reveal>
+                    <div class="sb-feature-icon" aria-hidden="true">
+                        <img src="/images/hero/checklist.svg" alt="" width="36" height="36" loading="lazy" />
+                    </div>
+                    <h3>SM-2 Spaced Repetition</h3>
+                    <p>Every attempt updates your personal SM-2 schedule so challenging concepts resurface sooner and mastered ones space out.</p>
+                </article>
+
+                <article class="sb-feature-card" data-reveal>
+                    <div class="sb-feature-icon" aria-hidden="true">
+                        <img src="/images/hero/analytics.svg" alt="" width="36" height="36" loading="lazy" />
+                    </div>
+                    <h3>Learning Analytics</h3>
+                    <p>Track real accuracy, weak topics, and daily study streaks calculated in your own configured timezone.</p>
+                </article>
+            </div>
+        </div>
+    </section>
+
+    <!-- How It Works Section -->
+    <section id="how-it-works" class="sb-section sb-section--surface" aria-labelledby="how-heading">
+        <div class="sb-container">
+            <div class="sb-section-head" data-reveal>
+                <span class="sb-badge sb-badge-marker" style="margin-bottom:0.75rem;">How It Works</span>
+                <h2 id="how-heading" class="sb-section-title">From raw notes to durable memory in three steps</h2>
+                <p class="sb-section-desc">
+                    No complex setup. Every deck stays private to your account.
+                </p>
+            </div>
+
+            <div class="sb-how-grid">
+                <ol class="sb-steps-list">
+                    <li class="sb-step-item" data-reveal>
+                        <span class="sb-step-num" aria-hidden="true">1</span>
+                        <div>
+                            <h3>Bring your study notes</h3>
+                            <p>Create a private deck by pasting your notes or uploading a text file. Your source material stays intact for reference.</p>
+                        </div>
+                    </li>
+                    <li class="sb-step-item" data-reveal>
+                        <span class="sb-step-num" aria-hidden="true">2</span>
+                        <div>
+                            <h3>Practice with split-view context</h3>
+                            <p>Answer generated MCQs on the right while verifying the exact supporting sentence highlighted on the left.</p>
+                        </div>
+                    </li>
+                    <li class="sb-step-item" data-reveal>
+                        <span class="sb-step-num" aria-hidden="true">3</span>
+                        <div>
+                            <h3>Review at the optimal interval</h3>
+                            <p>SM-2 schedules your next review automatically based on your accuracy and confidence, building lasting recall.</p>
+                        </div>
+                    </li>
+                </ol>
+
+                <div class="sb-how-visual" data-reveal>
+                    <img src="/images/hero/hero-illustration.svg"
+                         alt="Illustration of Study Buddy split-view notes and quiz workspace"
+                         width="280"
+                         height="204"
+                         loading="lazy" />
+                    <h3 style="margin:0 0 0.4rem;font-size:1.15rem;">Focused, distraction-free study</h3>
+                    <p style="margin:0;color:var(--sb-muted);font-size:0.92rem;">
+                        Designed for desktop split-view and responsive mobile accordions so you can review anywhere.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Final Call to Action -->
+    <section class="sb-section" aria-label="Get started">
+        <div class="sb-container">
+            <div class="sb-cta-banner" data-reveal>
+                <div>
+                    <h2>Ready to build your private study space?</h2>
+                    <p>Create your account to organize decks, practice active recall, and track real progress over time.</p>
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:0.75rem;">
+                    <AuthorizeView>
+                        <Authorized>
+                            <a class="sb-btn sb-btn-primary" href="/dashboard">Open Dashboard &rarr;</a>
+                        </Authorized>
+                        <NotAuthorized>
+                            <a class="sb-btn sb-btn-primary" href="/Account/Register">Create Account &rarr;</a>
+                            <a class="sb-btn sb-btn-secondary" href="/Account/Login">Log in</a>
+                        </NotAuthorized>
+                    </AuthorizeView>
+                </div>
+            </div>
+        </div>
+    </section>
+</div>
+
+@code {
+    private const string SampleNotesText =
+        "Cellular respiration is the process by which cells convert the chemical energy in glucose into ATP, which provides energy for cellular activities. " +
+        "Glycolysis takes place in the cytosol and splits one glucose molecule into two molecules of pyruvate. " +
+        "During oxidative phosphorylation, oxygen serves as the final electron acceptor at the end of the electron transport chain, forming water.";
+
+    private sealed record SampleQuestion(
+        string Topic,
+        string Question,
+        string[] Options,
+        int CorrectIndex,
+        string Explanation,
+        string SourceSentence);
+
+    private static readonly SampleQuestion[] _samples =
+    {
+        new(
+            "Bioenergetics",
+            "What is the primary energy molecule produced by cellular respiration?",
+            new[] { "Oxygen", "ATP", "Lactate", "Glycogen" },
+            1,
+            "Cells convert the chemical energy in glucose into ATP to power cellular work.",
+            "cells convert the chemical energy in glucose into ATP"),
+        new(
+            "Glycolysis",
+            "Where does glycolysis occur within the cell?",
+            new[] { "Cytosol", "Nucleus", "Golgi apparatus", "Lysosome" },
+            0,
+            "Glycolysis runs in the cytosol, splitting glucose into two pyruvate molecules.",
+            "Glycolysis takes place in the cytosol and splits one glucose molecule into two molecules of pyruvate."),
+        new(
+            "Electron Transport",
+            "What molecule acts as the final electron acceptor during oxidative phosphorylation?",
+            new[] { "Carbon dioxide", "Pyruvate", "Oxygen", "NADH" },
+            2,
+            "Oxygen accepts electrons at the end of the electron transport chain and combines with protons to form water.",
+            "oxygen serves as the final electron acceptor at the end of the electron transport chain, forming water.")
+    };
+
+    private int _sampleIndex;
+    private int? _selectedOption;
+
+    private SampleQuestion CurrentSample => _samples[_sampleIndex];
+
+    private void SelectSampleOption(int index)
+    {
+        _selectedOption = index;
+    }
+
+    private void PreviousSample()
+    {
+        if (_sampleIndex > 0)
+        {
+            _sampleIndex--;
+            _selectedOption = null;
+        }
+    }
+
+    private void NextSample()
+    {
+        _sampleIndex = (_sampleIndex + 1) % _samples.Length;
+        _selectedOption = null;
+    }
+
+    private static RenderFragment RenderHighlightedNotes(string excerpt) => builder =>
+    {
+        var idx = SampleNotesText.IndexOf(excerpt, StringComparison.Ordinal);
+        if (idx < 0)
+        {
+            builder.AddContent(0, SampleNotesText);
+            return;
+        }
+
+        var before = SampleNotesText[..idx];
+        var match = SampleNotesText.Substring(idx, excerpt.Length);
+        var after = SampleNotesText[(idx + excerpt.Length)..];
+
+        builder.AddContent(0, before);
+        builder.OpenElement(1, "mark");
+        builder.AddAttribute(2, "class", "sb-source-mark");
+        builder.AddContent(3, match);
+        builder.CloseElement();
+        builder.AddContent(4, after);
+    };
+}

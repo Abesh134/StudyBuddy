@@ -1,6 +1,18 @@
 ﻿@inherits LayoutComponentBase
 
-@Body
+<div class="sb-shell">
+    <a class="sb-skip-link" href="#main-content">Skip to main content</a>
+    <TopNav />
+    <main id="main-content" class="sb-main">
+        @Body
+    </main>
+    <footer class="sb-footer">
+        <div class="sb-footer-inner">
+            <span>&copy; @DateTime.UtcNow.Year Study Buddy</span>
+            <span>Private multi-user study workspace</span>
+        </div>
+    </footer>
+</div>
 
 <div id="blazor-error-ui" data-nosnippet>
     An unhandled error has occurred.

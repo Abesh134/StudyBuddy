@@ -25,10 +25,22 @@ public class Deck
     [Required]
     public string NotesText { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Preserves the original raw extraction output separately from the canonical user-approved NotesText.
+    /// Never overwritten when the user edits NotesText.
+    /// </summary>
+    public string? RawExtractedText { get; set; }
+
     public NoteSourceType SourceType { get; set; } = NoteSourceType.PastedText;
+
+    public SourceDocumentFormat DocumentFormat { get; set; } = SourceDocumentFormat.PastedNotes;
 
     [MaxLength(260)]
     public string? OriginalFileName { get; set; }
+
+    public int? SourcePageOrSlideCount { get; set; }
+
+    public bool UsedOcr { get; set; }
 
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 72" fill="none">
+  <line x1="32" y1="4" x2="32" y2="11" stroke="#FACC15" stroke-width="3.5" stroke-linecap="round"/>
+  <line x1="12" y1="12" x2="17" y2="17" stroke="#FACC15" stroke-width="3.5" stroke-linecap="round"/>
+  <line x1="52" y1="12" x2="47" y2="17" stroke="#FACC15" stroke-width="3.5" stroke-linecap="round"/>
+  <line x1="5" y1="32" x2="12" y2="32" stroke="#FACC15" stroke-width="3.5" stroke-linecap="round"/>
+  <line x1="52" y1="32" x2="59" y2="32" stroke="#FACC15" stroke-width="3.5" stroke-linecap="round"/>
+  <path d="M32 16C22.6 16 15 23.6 15 33C15 39.2 18.4 44.5 23 47.6V52C23 53.1 23.9 54 25 54H39C40.1 54 41 53.1 41 52V47.6C45.6 44.5 49 39.2 49 33C49 23.6 41.4 16 32 16Z" fill="#FDE047" stroke="#EAB308" stroke-width="2.5" stroke-linejoin="round"/>
+  <rect x="24" y="54" width="16" height="4.5" rx="2.25" fill="#2563EB"/>
+  <rect x="26" y="60" width="12" height="4" rx="2" fill="#2563EB"/>
+  <rect x="28.5" y="65.5" width="7" height="3.5" rx="1.75" fill="#1D4ED8"/>
+</svg>
+

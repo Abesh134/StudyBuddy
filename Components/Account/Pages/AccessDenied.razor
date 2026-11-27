@@ -2,9 +2,17 @@
 
 <PageTitle>Access denied - Study Buddy</PageTitle>
 
-<main style="max-width:520px;margin:2rem auto;padding:1.5rem;">
-    <h1>Access denied</h1>
-    <p>You do not have permission to access this resource.</p>
-    <p><a href="/">Return home</a></p>
-</main>
+<AuthPageShell>
+    <section class="sb-auth-single" aria-labelledby="denied-heading">
+        <div class="sb-auth-brand">
+            <img src="/images/branding/logo.svg" alt="Study Buddy" width="132" height="28" />
+        </div>
 
+        <h1 id="denied-heading" class="sb-auth-title">Access denied</h1>
+        <div class="sb-status-banner sb-status-banner--error">
+            You do not have permission to access this resource.
+        </div>
+
+        <a class="sb-btn sb-btn-secondary sb-auth-submit" href="/">Return home</a>
+    </section>
+</AuthPageShell>

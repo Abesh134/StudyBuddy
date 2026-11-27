@@ -1,0 +1,143 @@
+@page "/study"
+@page "/study/{deckId:int}"
+@attribute [Authorize]
+
+@using StudyBuddy.Models
+@using StudyBuddy.Services
+
+@inject IDashboardService DashboardService
+@inject IOwnerScopedDeckService DeckService
+
+<PageTitle>@(_selectedDeck is not null ? $"Study: {_selectedDeck.Title}" : "Study") - Study Buddy</PageTitle>
+
+<div class="sb-container">
+    <div class="sb-page-header">
+        <div>
+            <h1 class="sb-page-title">
+                @(_selectedDeck is not null ? _selectedDeck.Title : "Select a Deck to Study")
+            </h1>
+            <p class="sb-page-subtitle">
+                @(_selectedDeck is not null
+                    ? "Focused split-view study workspace for your private deck."
+                    : "Choose from your private study decks. Decks need generated questions before starting a quiz.")
+            </p>
+        </div>
+        <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
+            @if (DeckId.HasValue)
+            {
+                <a class="sb-btn sb-btn-secondary" href="/study">&larr; All study decks</a>
+            }
+            <a class="sb-btn sb-btn-primary" href="/decks/new">Create Deck</a>
+        </div>
+    </div>
+
+    <ErrorMessage Message="@_error" OnRetry="LoadAsync" />
+
+    @if (_loading)
+    {
+        <LoadingSpinner Label="Loading your study decks..." />
+    }
+    else if (DeckId.HasValue && _selectedDeck is null)
+    {
+        <EmptyState Title="Deck not found"
+                    Description="This deck does not exist or does not belong to your account."
+                    ActionText="Back to Study Selection"
+                    ActionHref="/study" />
+    }
+    else if (_selectedDeck is not null)
+    {
+        @if (_selectedDeck.Questions.Count == 0)
+        {
+            <EmptyState Title="No questions generated yet"
+                        Description="This deck has notes saved, but quiz questions have not been generated yet. Generate questions before starting a study session."
+                        ActionText="View Deck Details"
+                        ActionHref="@($"/decks/{_selectedDeck.Id}")" />
+        }
+        else
+        {
+            <section class="sb-card sb-dash-enter">
+                <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:0.75rem;margin-bottom:var(--sb-space-4);">
+                    <div>
+                        <span class="sb-badge sb-badge-success">Ready to study</span>
+                        <span class="sb-badge sb-badge-blue" style="margin-left:0.4rem;">
+                            @_selectedDeck.Questions.Count @(_selectedDeck.Questions.Count == 1 ? "question" : "questions")
+                        </span>
+                    </div>
+                    <a class="sb-btn sb-btn-secondary sb-btn-sm" href="/decks/@_selectedDeck.Id">View Deck Details</a>
+                </div>
+                <p style="margin:0;color:var(--sb-muted);">
+                    Your deck <strong>@_selectedDeck.Title</strong> is verified and ready. The interactive split-view quiz runner with source sentence highlighting and SM-2 grading will be connected in the Study Engine phase.
+                </p>
+            </section>
+        }
+    }
+    else if (_studyDecks.Count == 0)
+    {
+        <EmptyState Title="No study decks yet"
+                    Description="Create your first private deck from pasted notes or an uploaded text file to begin studying."
+                    ActionText="Create Deck"
+                    ActionHref="/decks/new" />
+    }
+    else
+    {
+        <div class="sb-grid sb-grid-decks">
+            @foreach (var deck in _studyDecks)
+            {
+                <div class="sb-dash-enter">
+                    <DeckCard Id="deck.Id"
+                              Title="@deck.Title"
+                              SourceType="deck.SourceType"
+                              DocumentFormat="deck.DocumentFormat"
+                              OriginalFileName="@deck.OriginalFileName"
+                              SourcePageOrSlideCount="deck.SourcePageOrSlideCount"
+                              UpdatedAtUtc="deck.UpdatedAtUtc"
+                              QuestionCount="deck.QuestionCount"
+                              DueCount="deck.DueCount"
+                              AccuracyPercent="deck.AccuracyPercent" />
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public int? DeckId { get; set; }
+
+    private bool _loading = true;
+    private string? _error;
+    private Deck? _selectedDeck;
+    private IReadOnlyList<DashboardDeckItemDto> _studyDecks = Array.Empty<DashboardDeckItemDto>();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        _selectedDeck = null;
+
+        try
+        {
+            if (DeckId.HasValue)
+            {
+                _selectedDeck = await DeckService.GetMyDeckByIdAsync(DeckId.Value);
+            }
+            else
+            {
+                _studyDecks = await DashboardService.GetStudyDecksAsync();
+            }
+        }
+        catch (Exception)
+        {
+            _error = "Unable to load your study decks right now. Please try again.";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}

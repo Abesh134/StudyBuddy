@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 160" fill="none">
+  <ellipse cx="110" cy="148" rx="92" ry="8" fill="#DBEAFE"/>
+  <rect x="22" y="32" width="176" height="106" rx="14" fill="#2563EB"/>
+  <rect x="30" y="40" width="160" height="90" rx="8" fill="#FFFFFF"/>
+  <!-- Left Notes Pane -->
+  <rect x="38" y="48" width="68" height="74" rx="6" fill="#F1F5F9"/>
+  <rect x="45" y="56" width="44" height="5" rx="2.5" fill="#93C5FD"/>
+  <rect x="45" y="66" width="52" height="5" rx="2.5" fill="#CBD5E1"/>
+  <rect x="45" y="76" width="54" height="7" rx="3.5" fill="#FEF08A"/>
+  <rect x="45" y="88" width="48" height="5" rx="2.5" fill="#CBD5E1"/>
+  <rect x="45" y="98" width="40" height="5" rx="2.5" fill="#CBD5E1"/>
+  <!-- Right Quiz Pane -->
+  <rect x="114" y="48" width="68" height="74" rx="6" fill="#F8FAFC"/>
+  <rect x="121" y="56" width="52" height="5" rx="2.5" fill="#2563EB"/>
+  <rect x="121" y="65" width="42" height="4.5" rx="2.25" fill="#172B4D"/>
+  <rect x="121" y="75" width="54" height="11" rx="4" fill="#EFF6FF"/>
+  <rect x="121" y="90" width="54" height="11" rx="4" fill="#BBF7D0"/>
+  <rect x="121" y="105" width="54" height="11" rx="4" fill="#EFF6FF"/>
+  <!-- Laptop Base -->
+  <path d="M12 138H208L198 146H22L12 138Z" fill="#1D4ED8"/>
+  <!-- Graduation Cap -->
+  <g transform="translate(142, 4) scale(0.75)">
+    <path d="M18 30V42C18 44.5 27 50 38 50C49 50 58 44.5 58 42V30L38 39L18 30Z" fill="#1D4ED8"/>
+    <path d="M38 10L6 24L38 38L70 24L38 10Z" fill="#2563EB"/>
+    <path d="M38 24L61 27V44" stroke="#FACC15" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M57 43H65L66.5 52H55.5L57 43Z" fill="#FACC15"/>
+  </g>
+</svg>
+

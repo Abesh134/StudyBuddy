@@ -1,0 +1,60 @@
+<section class="sb-empty-state" aria-label="@Title">
+    <div class="sb-empty-icon" aria-hidden="true">
+        @if (Icon is not null)
+        {
+            @Icon
+        }
+        else
+        {
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+            </svg>
+        }
+    </div>
+
+    <h2 class="sb-empty-title">@Title</h2>
+
+    @if (!string.IsNullOrWhiteSpace(Description))
+    {
+        <p class="sb-empty-desc">@Description</p>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(ActionText) && !string.IsNullOrWhiteSpace(ActionHref))
+    {
+        <a class="sb-btn sb-btn-primary" href="@ActionHref">@ActionText</a>
+    }
+    else if (!string.IsNullOrWhiteSpace(ActionText) && OnAction.HasDelegate)
+    {
+        <button type="button" class="sb-btn sb-btn-primary" @onclick="OnAction">@ActionText</button>
+    }
+
+    @if (ChildContent is not null)
+    {
+        @ChildContent
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Description { get; set; }
+
+    [Parameter]
+    public string? ActionText { get; set; }
+
+    [Parameter]
+    public string? ActionHref { get; set; }
+
+    [Parameter]
+    public EventCallback OnAction { get; set; }
+
+    [Parameter]
+    public RenderFragment? Icon { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+}
+

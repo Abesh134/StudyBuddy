@@ -279,6 +279,11 @@ namespace StudyBuddy.Data.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("DocumentFormat")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(0);
+
                     b.Property<string>("NotesText")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -286,6 +291,12 @@ namespace StudyBuddy.Data.Migrations
                     b.Property<string>("OriginalFileName")
                         .HasMaxLength(260)
                         .HasColumnType("TEXT");
+
+                    b.Property<string>("RawExtractedText")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("SourcePageOrSlideCount")
+                        .HasColumnType("INTEGER");
 
                     b.Property<int>("SourceType")
                         .HasColumnType("INTEGER");
@@ -297,6 +308,11 @@ namespace StudyBuddy.Data.Migrations
 
                     b.Property<DateTime>("UpdatedAtUtc")
                         .HasColumnType("TEXT");
+
+                    b.Property<bool>("UsedOcr")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(false);
 
                     b.Property<string>("UserId")
                         .IsRequired()
@@ -315,6 +331,57 @@ namespace StudyBuddy.Data.Migrations
                         .HasDatabaseName("IX_Decks_UserId_UpdatedAtUtc");
 
                     b.ToTable("Decks", (string)null);
+                });
+
+            modelBuilder.Entity("StudyBuddy.Models.EmailNotification", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("AcceptedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LastErrorCode")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("NotificationType")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ProviderMessageId")
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Status", "CreatedAtUtc")
+                        .HasDatabaseName("IX_EmailNotifications_Status_CreatedAtUtc");
+
+                    b.HasIndex("UserId", "NotificationType")
+                        .IsUnique()
+                        .HasDatabaseName("UX_EmailNotifications_UserId_NotificationType");
+
+                    b.ToTable("EmailNotifications", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_EmailNotifications_AttemptCount", "[AttemptCount] >= 0");
+                        });
                 });
 
             modelBuilder.Entity("StudyBuddy.Models.Question", b =>
@@ -510,6 +577,17 @@ namespace StudyBuddy.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Owner");
+                });
+
+            modelBuilder.Entity("StudyBuddy.Models.EmailNotification", b =>
+                {
+                    b.HasOne("StudyBuddy.Models.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("StudyBuddy.Models.Question", b =>
