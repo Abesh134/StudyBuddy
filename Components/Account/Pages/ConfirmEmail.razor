@@ -1,0 +1,55 @@
+@page "/Account/ConfirmEmail"
+@using System.Text
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.WebUtilities
+@using StudyBuddy.Models
+
+@inject UserManager<ApplicationUser> UserManager
+
+<PageTitle>Confirm email - Study Buddy</PageTitle>
+
+<main style="max-width:520px;margin:2rem auto;padding:1.5rem;">
+    <h1>Confirm email</h1>
+    <StatusMessage Message="@_statusMessage" />
+    <p><a href="/Account/Login">Proceed to log in</a></p>
+</main>
+
+@code {
+    private string? _statusMessage;
+
+    [SupplyParameterFromQuery]
+    private string? UserId { get; set; }
+
+    [SupplyParameterFromQuery]
+    private string? Code { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (string.IsNullOrWhiteSpace(UserId) || string.IsNullOrWhiteSpace(Code))
+        {
+            _statusMessage = "Error: Invalid email confirmation link.";
+            return;
+        }
+
+        var user = await UserManager.FindByIdAsync(UserId);
+        if (user is null)
+        {
+            _statusMessage = "Error: Unable to verify account confirmation.";
+            return;
+        }
+
+        try
+        {
+            var decodedCode = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(Code));
+            var result = await UserManager.ConfirmEmailAsync(user, decodedCode);
+            _statusMessage = result.Succeeded
+                ? "Thank you for confirming your email. You may now log in."
+                : "Error: Confirming your email failed. The link may have expired.";
+        }
+        catch (FormatException)
+        {
+            _statusMessage = "Error: Invalid confirmation token format.";
+        }
+    }
+}
+

@@ -1,0 +1,94 @@
+@page "/Account/ResendEmailConfirmation"
+@using System.ComponentModel.DataAnnotations
+@using System.Text
+@using System.Text.Encodings.Web
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.WebUtilities
+@using StudyBuddy.Models
+@using StudyBuddy.Services
+
+@inject UserManager<ApplicationUser> UserManager
+@inject IStudyBuddyEmailSender EmailSender
+@inject IHostEnvironment HostEnvironment
+@inject NavigationManager NavigationManager
+
+<PageTitle>Resend email confirmation - Study Buddy</PageTitle>
+
+<main style="max-width:440px;margin:2rem auto;padding:1.5rem;">
+    <h1>Resend email confirmation</h1>
+
+    <StatusMessage Message="@_message" />
+
+    @if (HostEnvironment.IsDevelopment() && !EmailSender.IsConfigured && !string.IsNullOrEmpty(_devConfirmationLink))
+    {
+        <p><a href="@_devConfirmationLink">Confirm account (Development only)</a></p>
+    }
+
+    <EditForm Model="Input" method="post" OnValidSubmit="OnValidSubmitAsync" FormName="resend-email-confirmation">
+        <DataAnnotationsValidator />
+        <ValidationSummary role="alert" />
+
+        <div style="margin-bottom:1rem;">
+            <label for="Input.Email">Email</label><br />
+            <InputText @bind-Value="Input.Email" id="Input.Email" autocomplete="username" aria-required="true" style="width:100%;padding:0.5rem;" />
+            <ValidationMessage For="() => Input.Email" />
+        </div>
+
+        <button type="submit" style="padding:0.5rem 1.25rem;">Resend</button>
+    </EditForm>
+</main>
+
+@code {
+    private string? _message;
+    private string? _devConfirmationLink;
+
+    [SupplyParameterFromForm]
+    private InputModel Input { get; set; } = default!;
+
+    protected override void OnInitialized() => Input ??= new();
+
+    private async Task OnValidSubmitAsync()
+    {
+        var user = await UserManager.FindByEmailAsync(Input.Email.Trim());
+        if (!EmailSender.IsConfigured)
+        {
+            if (HostEnvironment.IsDevelopment() && user is not null)
+            {
+                var userId = await UserManager.GetUserIdAsync(user);
+                var code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(
+                    await UserManager.GenerateEmailConfirmationTokenAsync(user)));
+                _devConfirmationLink = NavigationManager.GetUriWithQueryParameters(
+                    "/Account/ConfirmEmail",
+                    new Dictionary<string, object?> { ["userId"] = userId, ["code"] = code });
+                _message = "Development mode: no email provider is configured, so no email was sent.";
+            }
+            else
+            {
+                _message = "Error: Email delivery is not configured on this server. No email was sent.";
+            }
+
+            return;
+        }
+
+        if (user is not null)
+        {
+            var userId = await UserManager.GetUserIdAsync(user);
+            var code = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(
+                await UserManager.GenerateEmailConfirmationTokenAsync(user)));
+            var callbackUrl = NavigationManager.GetUriWithQueryParameters(
+                NavigationManager.ToAbsoluteUri("/Account/ConfirmEmail").AbsoluteUri,
+                new Dictionary<string, object?> { ["userId"] = userId, ["code"] = code });
+
+            await EmailSender.SendConfirmationLinkAsync(user, Input.Email.Trim(), HtmlEncoder.Default.Encode(callbackUrl));
+        }
+
+        _message = "If an account exists for that email, a confirmation link has been sent.";
+    }
+
+    private sealed class InputModel
+    {
+        [Required]
+        [EmailAddress]
+        public string Email { get; set; } = string.Empty;
+    }
+}

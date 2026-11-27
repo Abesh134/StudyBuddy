@@ -1,0 +1,21 @@
+﻿@page "/"
+
+<PageTitle>Study Buddy</PageTitle>
+
+<main style="max-width:640px;margin:2rem auto;padding:1.5rem;">
+    <h1>Study Buddy</h1>
+    <p>Multi-user study decks, quizzes, and spaced repetition.</p>
+
+    <AuthorizeView>
+        <Authorized>
+            <p>Signed in as <strong>@context.User.Identity?.Name</strong>.</p>
+            <p><a href="/dashboard">Go to Dashboard</a></p>
+        </Authorized>
+        <NotAuthorized>
+            <p>
+                <a href="/Account/Login">Log in</a> |
+                <a href="/Account/Register">Register</a>
+            </p>
+        </NotAuthorized>
+    </AuthorizeView>
+</main>

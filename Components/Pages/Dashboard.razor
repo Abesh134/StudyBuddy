@@ -1,0 +1,50 @@
+@page "/dashboard"
+@attribute [Authorize]
+
+@using StudyBuddy.Models
+@using StudyBuddy.Services
+
+@inject ICurrentUserService CurrentUserService
+@inject IOwnerScopedDeckService DeckService
+
+<PageTitle>Dashboard - Study Buddy</PageTitle>
+
+<main style="max-width:720px;margin:2rem auto;padding:1.5rem;">
+    <h1>Dashboard</h1>
+
+    @if (_loading)
+    {
+        <p>Loading...</p>
+    }
+    else if (_user is not null)
+    {
+        <p>Welcome, <strong>@_user.FullName</strong> (@_user.Email).</p>
+        <p>Your private decks: @_decks.Count</p>
+
+        <p><a href="/Account/Manage/ChangePassword">Change password</a></p>
+
+        <form action="/Account/Logout" method="post">
+            <AntiforgeryToken />
+            <input type="hidden" name="returnUrl" value="/" />
+            <button type="submit" style="padding:0.4rem 1rem;">Log out</button>
+        </form>
+    }
+</main>
+
+@code {
+    private bool _loading = true;
+    private ApplicationUser? _user;
+    private IReadOnlyList<Deck> _decks = Array.Empty<Deck>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _user = await CurrentUserService.GetCurrentUserAsync();
+        if (_user is not null)
+        {
+            _decks = await DeckService.GetMyDecksAsync();
+        }
+
+        _loading = false;
+    }
+}
+
