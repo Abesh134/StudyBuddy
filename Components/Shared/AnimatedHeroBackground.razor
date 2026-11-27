@@ -1,0 +1,156 @@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<section @ref="_heroRef" class="sb-hero @(_motionPaused ? "sb-motion-paused" : "")" aria-label="Study Buddy introduction">
+    <div class="sb-hero-bg" aria-hidden="true">
+        <!-- Softly drifting aurora gradients -->
+        <div class="sb-aurora sb-aurora--1"></div>
+        <div class="sb-aurora sb-aurora--2"></div>
+        <div class="sb-aurora sb-aurora--3"></div>
+
+        <!-- Moving dot grid with subtle parallax -->
+        <div class="sb-dot-grid" data-parallax-depth="0.14"></div>
+
+        <!-- Fixed subtle 5–8% educational symbols -->
+        <div class="sb-hero-symbols">
+            <span class="sb-symbol sb-symbol--1">&Sigma;</span>
+            <span class="sb-symbol sb-symbol--2">ATP</span>
+            <span class="sb-symbol sb-symbol--3">&pi;</span>
+            <span class="sb-symbol sb-symbol--4">H&#8322;O</span>
+            <span class="sb-symbol sb-symbol--5">&Delta;</span>
+            <span class="sb-symbol sb-symbol--6">&fnof;(x)</span>
+        </div>
+
+        <!-- Independent layered floating educational SVGs with depth-based parallax -->
+        <div class="sb-float-layer sb-float--book" data-parallax-depth="0.32">
+            <div class="sb-float-card">
+                <img src="/images/hero/book.svg" alt="" width="64" height="52" loading="eager" decoding="async" />
+            </div>
+        </div>
+
+        <div class="sb-float-layer sb-float--lightbulb" data-parallax-depth="0.48">
+            <div class="sb-float-card">
+                <img src="/images/hero/lightbulb.svg" alt="" width="52" height="58" loading="eager" decoding="async" />
+            </div>
+        </div>
+
+        <div class="sb-float-layer sb-float--cap" data-parallax-depth="0.26">
+            <div class="sb-float-card">
+                <img src="/images/hero/graduation-cap.svg" alt="" width="60" height="48" loading="eager" decoding="async" />
+            </div>
+        </div>
+
+        <div class="sb-float-layer sb-float--question" data-parallax-depth="0.54">
+            <div class="sb-float-card">
+                <img src="/images/hero/question-mark.svg" alt="" width="44" height="44" loading="eager" decoding="async" />
+            </div>
+        </div>
+
+        <div class="sb-float-layer sb-float--checklist" data-parallax-depth="0.38">
+            <div class="sb-float-card">
+                <img src="/images/hero/checklist.svg" alt="" width="52" height="58" loading="eager" decoding="async" />
+            </div>
+        </div>
+
+        <div class="sb-float-layer sb-float--analytics" data-parallax-depth="0.44">
+            <div class="sb-float-card">
+                <img src="/images/hero/analytics.svg" alt="" width="46" height="46" loading="eager" decoding="async" />
+            </div>
+        </div>
+
+        <!-- Subtle floating particles -->
+        <div class="sb-particles">
+            <span class="sb-particle sb-particle--1"></span>
+            <span class="sb-particle sb-particle--2"></span>
+            <span class="sb-particle sb-particle--3"></span>
+            <span class="sb-particle sb-particle--4"></span>
+            <span class="sb-particle sb-particle--5"></span>
+            <span class="sb-particle sb-particle--6"></span>
+        </div>
+    </div>
+
+    <div class="sb-hero-inner">
+        @ChildContent
+    </div>
+
+    <button type="button"
+            class="sb-motion-toggle"
+            aria-pressed="@_motionPaused.ToString().ToLowerInvariant()"
+            @onclick="ToggleMotionAsync">
+        @if (_motionPaused)
+        {
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <polygon points="6,4 20,12 6,20" />
+            </svg>
+            <span>Resume motion</span>
+        }
+        else
+        {
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <rect x="6" y="4" width="4" height="16" rx="1" />
+                <rect x="14" y="4" width="4" height="16" rx="1" />
+            </svg>
+            <span>Pause motion</span>
+        }
+    </button>
+</section>
+
+@code {
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    private ElementReference _heroRef;
+    private IJSObjectReference? _module;
+    private bool _motionPaused;
+    private bool _initialized;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                _module = await JS.InvokeAsync<IJSObjectReference>("import", "./js/hero-effects.js");
+                await _module.InvokeVoidAsync("initHeroEffects", _heroRef);
+                _initialized = true;
+            }
+            catch (JSDisconnectedException)
+            {
+                // Circuit disconnected before module initialized.
+            }
+        }
+    }
+
+    private async Task ToggleMotionAsync()
+    {
+        _motionPaused = !_motionPaused;
+        if (_module is not null && _initialized)
+        {
+            try
+            {
+                await _module.InvokeVoidAsync("setHeroMotionPaused", _heroRef, _motionPaused);
+            }
+            catch (JSDisconnectedException)
+            {
+                // Ignore if circuit disconnected.
+            }
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            try
+            {
+                await _module.InvokeVoidAsync("disposeHeroEffects", _heroRef);
+                await _module.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // Ignore during circuit teardown.
+            }
+        }
+    }
+}
+

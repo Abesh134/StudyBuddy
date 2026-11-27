@@ -1,0 +1,180 @@
+@using StudyBuddy.Models
+@using StudyBuddy.Services.Documents
+
+<article class="sb-deck-card">
+    <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.55rem;">
+            <span class="sb-badge @(EffectiveFormat == SourceDocumentFormat.PastedNotes ? "sb-badge-muted" : "sb-badge-blue")">
+                @DocumentExtractionResult.GetFormatDisplayName(EffectiveFormat)
+            </span>
+
+            <div style="display:flex;gap:0.4rem;align-items:center;">
+                @if (QuestionCount > 0)
+                {
+                    <span class="sb-badge sb-badge-success">Ready to study</span>
+                }
+                else
+                {
+                    <span class="sb-badge sb-badge-muted">No questions yet</span>
+                }
+
+                @if (DueCount > 0)
+                {
+                    <span class="sb-badge sb-badge-marker">@DueCount due</span>
+                }
+            </div>
+        </div>
+
+        <h3 class="sb-deck-title">@DeckTitle</h3>
+
+        @if (!string.IsNullOrWhiteSpace(FileName))
+        {
+            <p style="margin:0 0 0.4rem;font-size:0.8rem;color:var(--sb-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="@FileName">
+                Source: @FileName@FormatUnitCount()
+            </p>
+        }
+
+        <div class="sb-deck-meta">
+            <span>@QuestionCount @(QuestionCount == 1 ? "question" : "questions")</span>
+            @if (AccuracyPercent.HasValue)
+            {
+                <span aria-hidden="true">&middot;</span>
+                <span>@AccuracyPercent.Value.ToString("F0")% accuracy</span>
+            }
+            <span aria-hidden="true">&middot;</span>
+            <span>Updated @UpdatedAtUtc.ToString("MMM d, yyyy")</span>
+        </div>
+    </div>
+
+    <div class="sb-deck-actions">
+        @if (QuestionCount > 0)
+        {
+            <a class="sb-btn sb-btn-primary sb-btn-sm" href="/study/@DeckId">Study</a>
+        }
+        else
+        {
+            <button type="button"
+                    class="sb-btn sb-btn-secondary sb-btn-sm"
+                    disabled
+                    aria-disabled="true"
+                    title="Generate questions before starting a quiz">
+                Quiz unavailable
+            </button>
+        }
+
+        <a class="sb-btn sb-btn-secondary sb-btn-sm" href="/decks/@DeckId">Edit</a>
+
+        @if (OnDeleteRequested.HasDelegate)
+        {
+            <button type="button"
+                    class="sb-btn sb-btn-ghost sb-btn-sm"
+                    style="margin-left:auto;color:var(--sb-error);"
+                    @onclick="() => OnDeleteRequested.InvokeAsync(DeckId)">
+                Delete
+            </button>
+        }
+        else if (OnDelete.HasDelegate && Deck is not null)
+        {
+            <button type="button"
+                    class="sb-btn sb-btn-ghost sb-btn-sm"
+                    style="margin-left:auto;color:var(--sb-error);"
+                    @onclick="() => OnDelete.InvokeAsync(Deck)">
+                Delete
+            </button>
+        }
+    </div>
+</article>
+
+@code {
+    [Parameter]
+    public Deck? Deck { get; set; }
+
+    [Parameter]
+    public int Id { get; set; }
+
+    [Parameter]
+    public string? Title { get; set; }
+
+    [Parameter]
+    public NoteSourceType SourceType { get; set; } = NoteSourceType.PastedText;
+
+    [Parameter]
+    public SourceDocumentFormat DocumentFormat { get; set; } = SourceDocumentFormat.PastedNotes;
+
+    [Parameter]
+    public string? OriginalFileName { get; set; }
+
+    [Parameter]
+    public int? SourcePageOrSlideCount { get; set; }
+
+    [Parameter]
+    public DateTime UpdatedAtUtc { get; set; }
+
+    [Parameter]
+    public int QuestionCount { get; set; }
+
+    [Parameter]
+    public int DueCount { get; set; }
+
+    [Parameter]
+    public double? AccuracyPercent { get; set; }
+
+    [Parameter]
+    public EventCallback<Deck> OnDelete { get; set; }
+
+    [Parameter]
+    public EventCallback<int> OnDeleteRequested { get; set; }
+
+    private int DeckId => Deck?.Id ?? Id;
+    private string DeckTitle => Deck?.Title ?? Title ?? string.Empty;
+    private string? FileName => Deck?.OriginalFileName ?? OriginalFileName;
+    private int? PageOrSlideCount => Deck?.SourcePageOrSlideCount ?? SourcePageOrSlideCount;
+
+    private SourceDocumentFormat EffectiveFormat
+    {
+        get
+        {
+            var fmt = Deck?.DocumentFormat ?? DocumentFormat;
+            if (fmt != SourceDocumentFormat.PastedNotes)
+            {
+                return fmt;
+            }
+
+            if ((Deck?.SourceType ?? SourceType) == NoteSourceType.UploadedFile)
+            {
+                return SourceDocumentFormat.TextDocument;
+            }
+
+            return SourceDocumentFormat.PastedNotes;
+        }
+    }
+
+    private string FormatUnitCount()
+    {
+        if (!PageOrSlideCount.HasValue || PageOrSlideCount.Value <= 0)
+        {
+            return string.Empty;
+        }
+
+        if (EffectiveFormat == SourceDocumentFormat.PowerPointPresentation)
+        {
+            return $" ({PageOrSlideCount.Value} {(PageOrSlideCount.Value == 1 ? "slide" : "slides")})";
+        }
+
+        if (EffectiveFormat == SourceDocumentFormat.PdfDocument)
+        {
+            return $" ({PageOrSlideCount.Value} {(PageOrSlideCount.Value == 1 ? "page" : "pages")})";
+        }
+
+        return string.Empty;
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (Deck is not null)
+        {
+            SourceType = Deck.SourceType;
+            UpdatedAtUtc = Deck.UpdatedAtUtc;
+        }
+    }
+}

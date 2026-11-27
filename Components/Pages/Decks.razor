@@ -1,0 +1,215 @@
+@page "/decks"
+@attribute [Authorize]
+
+@using StudyBuddy.Services
+
+@inject IDeckService DeckService
+
+<PageTitle>Decks - Study Buddy</PageTitle>
+
+<div class="sb-container">
+    <div class="sb-page-header">
+        <div>
+            <h1 class="sb-page-title">Your Decks</h1>
+            <p class="sb-page-subtitle">Search, organize, edit, and manage your private study decks.</p>
+        </div>
+        <a class="sb-btn sb-btn-primary" href="/decks/new">New Deck</a>
+    </div>
+
+    <ErrorMessage Message="@_error" OnRetry="LoadDecksAsync" OnDismiss="() => _error = null" />
+
+    @if (!string.IsNullOrWhiteSpace(_statusMessage))
+    {
+        <div role="status" class="sb-status-banner" style="margin-bottom:var(--sb-space-4);">
+            @_statusMessage
+        </div>
+    }
+
+    <!-- Search & Sort Toolbar -->
+    <section class="sb-toolbar" aria-label="Filter and sort decks">
+        <div class="sb-toolbar-search">
+            <label for="deck-search" class="sr-only">Search decks</label>
+            <input id="deck-search"
+                   type="search"
+                   class="sb-input"
+                   placeholder="Search by deck title or filename..."
+                   value="@_search"
+                   @oninput="OnSearchInputAsync" />
+        </div>
+
+        <div class="sb-toolbar-sort">
+            <label for="deck-sort" style="font-size:0.85rem;font-weight:600;color:var(--sb-muted);white-space:nowrap;">Sort by</label>
+            <select id="deck-sort" class="sb-input" value="@_sort" @onchange="OnSortChangedAsync">
+                <option value="@DeckSortOrder.UpdatedDesc">Recently updated</option>
+                <option value="@DeckSortOrder.CreatedDesc">Newest created</option>
+                <option value="@DeckSortOrder.TitleAsc">Title (A–Z)</option>
+                <option value="@DeckSortOrder.TitleDesc">Title (Z–A)</option>
+                <option value="@DeckSortOrder.MostQuestions">Most questions</option>
+                <option value="@DeckSortOrder.MostDue">Most due for review</option>
+            </select>
+        </div>
+    </section>
+
+    @if (_loading)
+    {
+        <LoadingSpinner Label="Loading your decks..." />
+    }
+    else if (_decks.Count == 0 && !string.IsNullOrWhiteSpace(_search))
+    {
+        <EmptyState Title="No matching decks"
+                    Description="No decks matched your search query. Try a different keyword or clear the search filter."
+                    ActionText="Clear search"
+                    OnAction="ClearSearchAsync" />
+    }
+    else if (_decks.Count == 0)
+    {
+        <EmptyState Title="No study decks yet"
+                    Description="Create your first private deck by pasting study notes or uploading a .txt or .md file."
+                    ActionText="Create your first deck"
+                    ActionHref="/decks/new" />
+    }
+    else
+    {
+        <div class="sb-grid sb-grid-decks">
+            @foreach (var deck in _decks)
+            {
+                <div class="sb-dash-enter">
+                    <DeckCard Id="deck.Id"
+                              Title="@deck.Title"
+                              SourceType="deck.SourceType"
+                              DocumentFormat="deck.DocumentFormat"
+                              OriginalFileName="@deck.OriginalFileName"
+                              SourcePageOrSlideCount="deck.SourcePageOrSlideCount"
+                              UpdatedAtUtc="deck.UpdatedAtUtc"
+                              QuestionCount="deck.QuestionCount"
+                              DueCount="deck.DueCount"
+                              AccuracyPercent="deck.AccuracyPercent"
+                              OnDeleteRequested="PromptDeleteDeck" />
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<ConfirmDialog IsOpen="@(_deckToDelete is not null)"
+               Title="Delete study deck?"
+               Message="@GetDeleteMessage()"
+               ConfirmText="Delete permanently"
+               CancelText="Cancel"
+               IsDestructive="true"
+               IsBusy="@_deleting"
+               OnConfirm="ConfirmDeleteAsync"
+               OnCancel="CancelDelete" />
+
+@code {
+    private bool _loading = true;
+    private bool _deleting;
+    private string? _error;
+    private string? _statusMessage;
+    private string _search = string.Empty;
+    private DeckSortOrder _sort = DeckSortOrder.UpdatedDesc;
+    private IReadOnlyList<DeckListItemDto> _decks = Array.Empty<DeckListItemDto>();
+    private DeckListItemDto? _deckToDelete;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDecksAsync();
+    }
+
+    private async Task LoadDecksAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _decks = await DeckService.GetDecksAsync(_search, _sort);
+        }
+        catch (Exception)
+        {
+            _error = "Unable to load your decks right now. Please try again.";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task OnSearchInputAsync(ChangeEventArgs e)
+    {
+        _search = e.Value?.ToString() ?? string.Empty;
+        await LoadDecksAsync();
+    }
+
+    private async Task OnSortChangedAsync(ChangeEventArgs e)
+    {
+        if (Enum.TryParse<DeckSortOrder>(e.Value?.ToString(), out var parsed))
+        {
+            _sort = parsed;
+            await LoadDecksAsync();
+        }
+    }
+
+    private async Task ClearSearchAsync()
+    {
+        _search = string.Empty;
+        await LoadDecksAsync();
+    }
+
+    private void PromptDeleteDeck(int deckId)
+    {
+        _deckToDelete = _decks.FirstOrDefault(d => d.Id == deckId);
+        _statusMessage = null;
+    }
+
+    private void CancelDelete()
+    {
+        if (!_deleting)
+        {
+            _deckToDelete = null;
+        }
+    }
+
+    private string GetDeleteMessage()
+    {
+        if (_deckToDelete is null)
+        {
+            return string.Empty;
+        }
+
+        return $"Permanently delete \"{_deckToDelete.Title}\"? This will cascade delete all {_deckToDelete.QuestionCount} questions, quiz attempts, and spaced-repetition review states in this deck. This action cannot be undone.";
+    }
+
+    private async Task ConfirmDeleteAsync()
+    {
+        if (_deckToDelete is null || _deleting)
+        {
+            return;
+        }
+
+        _deleting = true;
+        _error = null;
+        try
+        {
+            var deletedTitle = _deckToDelete.Title;
+            var result = await DeckService.DeleteDeckAsync(_deckToDelete.Id);
+            if (!result.Succeeded)
+            {
+                _error = result.ErrorMessage ?? "Failed to delete deck.";
+            }
+            else
+            {
+                _statusMessage = $"Deleted \"{deletedTitle}\".";
+                _deckToDelete = null;
+                await LoadDecksAsync();
+            }
+        }
+        catch (Exception)
+        {
+            _error = "An unexpected error occurred while deleting the deck.";
+        }
+        finally
+        {
+            _deleting = false;
+        }
+    }
+}

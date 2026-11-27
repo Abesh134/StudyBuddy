@@ -1,0 +1,20 @@
+@page "/review"
+@attribute [Authorize]
+
+<PageTitle>Review - Study Buddy</PageTitle>
+
+<div class="sb-container">
+    <div class="sb-page-header">
+        <div>
+            <h1 class="sb-page-title">Spaced Repetition Review</h1>
+            <p class="sb-page-subtitle">Review cards scheduled by the SM-2 algorithm.</p>
+        </div>
+        <a class="sb-btn sb-btn-secondary" href="/dashboard">Dashboard</a>
+    </div>
+
+    <EmptyState Title="Review queue ready"
+                Description="Your due SM-2 spaced-repetition review queue will be powered here once quiz review sessions are connected."
+                ActionText="Browse your decks"
+                ActionHref="/decks" />
+</div>
+

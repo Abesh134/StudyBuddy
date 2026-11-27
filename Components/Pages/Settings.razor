@@ -1,0 +1,170 @@
+@page "/settings"
+@attribute [Authorize]
+
+@using Microsoft.Extensions.Options
+@using StudyBuddy.Models
+@using StudyBuddy.Services
+
+@inject ICurrentUserService CurrentUserService
+@inject IHostEnvironment HostEnvironment
+@inject IOptionsMonitor<EmailOptions> EmailOptionsMonitor
+@inject IEmailService EmailService
+
+<PageTitle>Settings - Study Buddy</PageTitle>
+
+<div class="sb-container">
+    <div class="sb-page-header">
+        <div>
+            <h1 class="sb-page-title">Profile &amp; Settings</h1>
+            <p class="sb-page-subtitle">Manage your account preferences and study timezone.</p>
+        </div>
+    </div>
+
+    @if (_loading)
+    {
+        <LoadingSpinner Label="Loading account settings..." />
+    }
+    else if (_user is not null)
+    {
+        <div class="sb-grid" style="max-width:680px;">
+            <section id="profile" class="sb-card">
+                <h2 style="font-size:1.2rem;margin-bottom:1rem;">Profile</h2>
+                <dl style="display:grid;grid-template-columns:160px 1fr;gap:0.65rem 1rem;margin:0 0 1.5rem;">
+                    <dt style="color:var(--sb-muted);font-weight:600;">Full name</dt>
+                    <dd style="margin:0;">@_user.FullName</dd>
+
+                    <dt style="color:var(--sb-muted);font-weight:600;">Email</dt>
+                    <dd style="margin:0;">@_user.Email</dd>
+
+                    <dt style="color:var(--sb-muted);font-weight:600;">Study timezone</dt>
+                    <dd style="margin:0;">@_user.StudyTimeZoneId</dd>
+
+                    <dt style="color:var(--sb-muted);font-weight:600;">Member since</dt>
+                    <dd style="margin:0;">@_user.CreatedAtUtc.ToString("MMMM d, yyyy") UTC</dd>
+                </dl>
+
+                <a class="sb-btn sb-btn-secondary" href="/Account/Manage/ChangePassword">Change password</a>
+            </section>
+
+            @if (HostEnvironment.IsDevelopment())
+            {
+                var emailCfg = EmailOptionsMonitor.CurrentValue;
+                <section class="sb-card" aria-labelledby="dev-email-heading">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;margin-bottom:0.75rem;">
+                        <h2 id="dev-email-heading" style="font-size:1.15rem;margin:0;">Email Delivery (Development Only)</h2>
+                        <span class="sb-badge @(emailCfg.IsConfigured ? "sb-badge-success" : "sb-badge-muted")">
+                            @(emailCfg.IsConfigured ? "Configured" : "Not configured")
+                        </span>
+                    </div>
+
+                    <dl style="display:grid;grid-template-columns:160px 1fr;gap:0.45rem 1rem;margin:0 0 1rem;font-size:0.9rem;">
+                        <dt style="color:var(--sb-muted);font-weight:600;">Provider</dt>
+                        <dd style="margin:0;">@emailCfg.Provider</dd>
+
+                        <dt style="color:var(--sb-muted);font-weight:600;">Sender</dt>
+                        <dd style="margin:0;">@(string.IsNullOrWhiteSpace(emailCfg.FromEmail) ? "Not set" : emailCfg.FormattedFrom)</dd>
+
+                        <dt style="color:var(--sb-muted);font-weight:600;">Timeout</dt>
+                        <dd style="margin:0;">@((int)emailCfg.EffectiveTimeout.TotalSeconds)s</dd>
+                    </dl>
+
+                    @if (emailCfg.IsUsingResendTestDomain)
+                    {
+                        <p style="font-size:0.85rem;color:var(--sb-muted);margin:0 0 1rem;">
+                            Note: <code>onboarding@resend.dev</code> can only deliver to your verified Resend account email address until a custom sending domain is verified.
+                        </p>
+                    }
+
+                    @if (!string.IsNullOrWhiteSpace(_testFeedback))
+                    {
+                        <div role="status" class="sb-status-banner @(_testSucceeded ? "" : "sb-status-banner--error")">
+                            @_testFeedback
+                        </div>
+                    }
+
+                    <div style="display:flex;flex-wrap:wrap;gap:0.6rem;align-items:center;">
+                        <label for="dev-test-recipient" class="sr-only">Test recipient email</label>
+                        <input id="dev-test-recipient"
+                               type="email"
+                               class="sb-input"
+                               style="flex:1 1 240px;"
+                               placeholder="Your Resend account email"
+                               @bind="_testRecipient" />
+                        <button type="button"
+                                class="sb-btn sb-btn-primary"
+                                disabled="@(_sendingTest || !emailCfg.IsConfigured)"
+                                @onclick="SendDevTestEmailAsync">
+                            @(_sendingTest ? "Sending..." : "Send test email")
+                        </button>
+                    </div>
+                </section>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private bool _loading = true;
+    private ApplicationUser? _user;
+
+    private string _testRecipient = string.Empty;
+    private bool _sendingTest;
+    private bool _testSucceeded;
+    private string? _testFeedback;
+    private DateTimeOffset _lastTestSentAt = DateTimeOffset.MinValue;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _user = await CurrentUserService.GetCurrentUserAsync();
+        if (_user?.Email is not null)
+        {
+            _testRecipient = _user.Email;
+        }
+        _loading = false;
+    }
+
+    private async Task SendDevTestEmailAsync()
+    {
+        if (!HostEnvironment.IsDevelopment() || _sendingTest)
+        {
+            return;
+        }
+
+        if (DateTimeOffset.UtcNow - _lastTestSentAt < TimeSpan.FromSeconds(30))
+        {
+            _testSucceeded = false;
+            _testFeedback = "Please wait 30 seconds before sending another test email.";
+            return;
+        }
+
+        _sendingTest = true;
+        _testFeedback = null;
+        try
+        {
+            var now = DateTimeOffset.UtcNow;
+            var idempotencyKey = $"sb-dev-ui-test-{_user?.Id}-{now.ToUnixTimeSeconds() / 30}";
+            var result = await EmailService.SendAsync(new EmailMessage(
+                To: _testRecipient.Trim(),
+                Subject: "Study Buddy — Development Test Email",
+                HtmlBody: "<p>This is a development-only test email from <strong>Study Buddy</strong> via Resend.</p>",
+                TextBody: "This is a development-only test email from Study Buddy via Resend.",
+                IdempotencyKey: idempotencyKey,
+                Category: "dev-test"));
+
+            _testSucceeded = result.Succeeded;
+            if (result.Succeeded)
+            {
+                _lastTestSentAt = now;
+                _testFeedback = $"Test email accepted by Resend (ID: {result.MessageId ?? "confirmed"}).";
+            }
+            else
+            {
+                _testFeedback = result.ErrorMessage ?? $"Delivery failed ({result.Status}).";
+            }
+        }
+        finally
+        {
+            _sendingTest = false;
+        }
+    }
+}

@@ -1,0 +1,40 @@
+<article class="sb-stat-card @AccentClass">
+    <div class="sb-stat-header">
+        <span class="sb-stat-label">@Label</span>
+        @if (Icon is not null)
+        {
+            <span aria-hidden="true">@Icon</span>
+        }
+    </div>
+    <div class="sb-stat-value">@Value</div>
+    @if (!string.IsNullOrWhiteSpace(Subtext))
+    {
+        <div class="sb-stat-subtext">@Subtext</div>
+    }
+</article>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Label { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string Value { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Subtext { get; set; }
+
+    [Parameter]
+    public string Accent { get; set; } = "blue";
+
+    [Parameter]
+    public RenderFragment? Icon { get; set; }
+
+    private string AccentClass => Accent switch
+    {
+        "success" => "sb-stat-card--success",
+        "marker" => "sb-stat-card--marker",
+        "navy" => "sb-stat-card--navy",
+        _ => string.Empty
+    };
+}
+

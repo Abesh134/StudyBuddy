@@ -7,6 +7,8 @@ using StudyBuddy.Components.Account;
 using StudyBuddy.Data;
 using StudyBuddy.Models;
 using StudyBuddy.Services;
+using StudyBuddy.Services.Documents;
+using StudyBuddy.Services.Email;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -63,14 +65,30 @@ builder.Services.AddScoped<AppDbContext>(sp =>
 
 builder.Services.Configure<EmailOptions>(
     builder.Configuration.GetSection(EmailOptions.SectionName));
+
+var emailOptions = builder.Configuration.GetSection(EmailOptions.SectionName).Get<EmailOptions>()
+    ?? new EmailOptions();
+
+builder.Services.AddHttpClient(ResendEmailService.HttpClientName, client =>
+{
+    var baseUrl = Uri.TryCreate(emailOptions.BaseUrl, UriKind.Absolute, out var parsedUri)
+        ? parsedUri
+        : new Uri("https://api.resend.com/");
+    client.BaseAddress = baseUrl;
+    client.Timeout = Timeout.InfiniteTimeSpan; // Per-request linked timeout is enforced in ResendEmailService.
+    client.DefaultRequestHeaders.Accept.ParseAdd("application/json");
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("StudyBuddy/1.0");
+});
+
+builder.Services.AddSingleton<IEmailTemplateService, EmailTemplateService>();
+builder.Services.AddSingleton<IEmailService, ResendEmailService>();
+builder.Services.AddSingleton<IEmailNotificationService, EmailNotificationService>();
 builder.Services.AddSingleton<ConfigurableEmailSender>();
 builder.Services.AddSingleton<IStudyBuddyEmailSender>(sp =>
     sp.GetRequiredService<ConfigurableEmailSender>());
 builder.Services.AddSingleton<IEmailSender<ApplicationUser>>(sp =>
     sp.GetRequiredService<ConfigurableEmailSender>());
 
-var emailOptions = builder.Configuration.GetSection(EmailOptions.SectionName).Get<EmailOptions>()
-    ?? new EmailOptions();
 var requireConfirmedAccount = !builder.Environment.IsDevelopment() ||
     emailOptions.IsConfigured ||
     builder.Configuration.GetValue<bool>("Identity:RequireConfirmedAccount");
@@ -118,6 +136,24 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
 
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped<IOwnerScopedDeckService, OwnerScopedDeckService>();
+builder.Services.AddScoped<IUserStreakService, UserStreakService>();
+builder.Services.AddScoped<IDashboardService, DashboardService>();
+builder.Services.Configure<DeckUploadOptions>(
+    builder.Configuration.GetSection(DeckUploadOptions.SectionName));
+builder.Services.Configure<DocumentExtractionOptions>(
+    builder.Configuration.GetSection(DocumentExtractionOptions.SectionName));
+
+builder.Services.AddSingleton<IOcrService, TesseractCliOcrService>();
+builder.Services.AddSingleton<IPdfPageRenderer, PdfToImagePageRenderer>();
+builder.Services.AddSingleton<ITextExtractor, PlainTextExtractor>();
+builder.Services.AddSingleton<ITextExtractor, PdfTextExtractor>();
+builder.Services.AddSingleton<ITextExtractor, WordTextExtractor>();
+builder.Services.AddSingleton<ITextExtractor, PowerPointTextExtractor>();
+builder.Services.AddSingleton<ITextExtractor, ImageTextExtractor>();
+builder.Services.AddSingleton<IDocumentExtractionService, DocumentExtractionService>();
+builder.Services.AddSingleton<ISafeMarkdownRenderer, SafeMarkdownRenderer>();
+
+builder.Services.AddScoped<IDeckService, DeckService>();
 
 builder.Services.Configure<DevSeedOptions>(
     builder.Configuration.GetSection(DevSeedOptions.SectionName));
@@ -144,6 +180,7 @@ app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 app.MapAdditionalIdentityEndpoints();
+app.MapDevEmailTestingEndpoints(app.Environment);
 
 if (app.Environment.IsDevelopment() &&
     app.Configuration.GetValue<bool>($"{DevSeedOptions.SectionName}:Enabled"))

@@ -1,0 +1,55 @@
+@using StudyBuddy.Services.Documents
+@inject ISafeMarkdownRenderer MarkdownRenderer
+@inject IJSRuntime JS
+
+<div @ref="_containerRef" class="sb-md-preview" role="document" aria-label="@AriaLabel">
+    @((MarkupString)_renderedHtml)
+</div>
+
+@code {
+    private ElementReference _containerRef;
+    private string? _lastMarkdown;
+    private string _renderedHtml = string.Empty;
+    private bool _needsMathRender;
+
+    [Parameter]
+    public string? Markdown { get; set; }
+
+    [Parameter]
+    public string AriaLabel { get; set; } = "Formatted study notes preview";
+
+    protected override void OnParametersSet()
+    {
+        if (!string.Equals(_lastMarkdown, Markdown, StringComparison.Ordinal))
+        {
+            _lastMarkdown = Markdown;
+            _renderedHtml = MarkdownRenderer.RenderToSafeHtml(Markdown);
+            _needsMathRender = !string.IsNullOrWhiteSpace(_renderedHtml);
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_needsMathRender || firstRender)
+        {
+            _needsMathRender = false;
+            try
+            {
+                await JS.InvokeVoidAsync("studyBuddyMath.render", _containerRef);
+            }
+            catch (JSDisconnectedException)
+            {
+                // Circuit closed before JS call completed.
+            }
+            catch (TaskCanceledException)
+            {
+                // Component disposed during render.
+            }
+            catch (JSException)
+            {
+                // Safe fallback: raw LaTeX remains readable.
+            }
+        }
+    }
+}
+

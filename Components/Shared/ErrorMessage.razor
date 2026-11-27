@@ -1,0 +1,38 @@
+@if (!string.IsNullOrWhiteSpace(Message))
+{
+    <div class="sb-error-box" role="alert">
+        <div>
+            @if (!string.IsNullOrWhiteSpace(Title))
+            {
+                <p class="sb-error-title">@Title</p>
+            }
+            <p class="sb-error-text">@Message</p>
+        </div>
+
+        <div style="display:flex;gap:0.5rem;align-items:center;">
+            @if (OnRetry.HasDelegate)
+            {
+                <button type="button" class="sb-btn sb-btn-secondary sb-btn-sm" @onclick="OnRetry">Try again</button>
+            }
+            @if (OnDismiss.HasDelegate)
+            {
+                <button type="button" class="sb-btn sb-btn-ghost sb-btn-sm" @onclick="OnDismiss" aria-label="Dismiss error">Dismiss</button>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string? Title { get; set; } = "Something went wrong";
+
+    [Parameter]
+    public string? Message { get; set; }
+
+    [Parameter]
+    public EventCallback OnRetry { get; set; }
+
+    [Parameter]
+    public EventCallback OnDismiss { get; set; }
+}
+

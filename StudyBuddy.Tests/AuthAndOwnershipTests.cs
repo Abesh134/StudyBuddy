@@ -39,6 +39,7 @@ public class AuthAndOwnershipTests
             builder.UseEnvironment(_environmentName);
             builder.UseSetting("ConnectionStrings:DefaultConnection", $"Data Source={_dbFilePath}");
             builder.UseSetting("DevSeed:Enabled", "false");
+            builder.UseSetting("Email:Enabled", "false");
         }
 
         public async Task EnsureMigratedAsync()
@@ -92,6 +93,14 @@ public class AuthAndOwnershipTests
 
     [Theory]
     [InlineData("/dashboard")]
+    [InlineData("/study")]
+    [InlineData("/study/1")]
+    [InlineData("/decks")]
+    [InlineData("/decks/new")]
+    [InlineData("/decks/1")]
+    [InlineData("/review")]
+    [InlineData("/stats")]
+    [InlineData("/settings")]
     [InlineData("/Account/Manage/ChangePassword")]
     public async Task ProtectedRoutes_RedirectUnauthenticatedUsersToLogin(string path)
     {
@@ -107,6 +116,127 @@ public class AuthAndOwnershipTests
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         var location = response.Headers.Location?.ToString() ?? string.Empty;
         Assert.Contains("/Account/Login", location, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task PublicLandingPage_RendersHeroAndSamplePreviewWithoutLeakingUserData()
+    {
+        await using var factory = new TestAppFactory();
+        await factory.EnsureMigratedAsync();
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+            var secretUser = new ApplicationUser
+            {
+                UserName = "private.user@example.test",
+                Email = "private.user@example.test",
+                EmailConfirmed = true,
+                FullName = "Private Secret Name"
+            };
+            Assert.True((await userManager.CreateAsync(secretUser, "SecretPass123")).Succeeded);
+
+            db.Decks.Add(new Deck
+            {
+                UserId = secretUser.Id,
+                Title = "Confidential Private Deck Title",
+                NotesText = "Confidential study notes"
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        var response = await client.GetAsync("/");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Contains("Study smarter.", html);
+        Assert.Contains("Remember longer.", html);
+        Assert.Contains("Interactive Sample", html);
+        Assert.Contains("Pause motion", html);
+        Assert.Contains("/images/hero/book.svg", html);
+        Assert.Contains("/Account/Register", html);
+        Assert.Contains("/Account/Login", html);
+
+        // Must never leak private user or deck data on public landing page
+        Assert.DoesNotContain("Private Secret Name", html);
+        Assert.DoesNotContain("Confidential Private Deck Title", html);
+        Assert.DoesNotContain("private.user@example.test", html);
+    }
+
+    [Fact]
+    public async Task StyledRegisterThenLogin_CreatesAccountAndRoutesToDashboardWithoutSocialLogin()
+    {
+        await using var factory = new TestAppFactory();
+        await factory.EnsureMigratedAsync();
+
+        var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            HandleCookies = true
+        });
+
+        // 1. Load styled Register page and verify progressive enhancement hooks & no social login
+        var regPage = await client.GetAsync("/Account/Register");
+        Assert.Equal(HttpStatusCode.OK, regPage.StatusCode);
+        var regHtml = await regPage.Content.ReadAsStringAsync();
+        Assert.Contains("register-illustration.svg", regHtml);
+        Assert.Contains("data-password-strength", regHtml);
+        Assert.Contains("data-password-toggle", regHtml);
+        Assert.DoesNotContain("or continue with", regHtml, StringComparison.OrdinalIgnoreCase);
+
+        var regToken = ExtractAntiforgeryToken(regHtml);
+        var regForm = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = regToken,
+            ["_handler"] = "register",
+            ["Input.FullName"] = "Clara Okafor",
+            ["Input.Email"] = "clara@example.test",
+            ["Input.Password"] = "ClaraStudy2026",
+            ["Input.ConfirmPassword"] = "ClaraStudy2026"
+        });
+
+        var postReg = await client.PostAsync("/Account/Register", regForm);
+        Assert.Equal(HttpStatusCode.Redirect, postReg.StatusCode);
+        var regLocation = postReg.Headers.Location;
+        Assert.NotNull(regLocation);
+        Assert.Equal("/Account/Login", regLocation!.IsAbsoluteUri ? regLocation.AbsolutePath : regLocation.OriginalString);
+
+        // 2. Load styled Login page and sign in with newly registered account
+        var loginPage = await client.GetAsync("/Account/Login");
+        Assert.Equal(HttpStatusCode.OK, loginPage.StatusCode);
+        var loginHtml = await loginPage.Content.ReadAsStringAsync();
+        Assert.Contains("login-illustration.svg", loginHtml);
+        Assert.Contains("data-password-toggle", loginHtml);
+        Assert.DoesNotContain("or continue with", loginHtml, StringComparison.OrdinalIgnoreCase);
+
+        var loginToken = ExtractAntiforgeryToken(loginHtml);
+        var loginForm = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = loginToken,
+            ["_handler"] = "login",
+            ["Input.Email"] = "clara@example.test",
+            ["Input.Password"] = "ClaraStudy2026",
+            ["Input.RememberMe"] = "false"
+        });
+
+        var postLogin = await client.PostAsync("/Account/Login", loginForm);
+        Assert.Equal(HttpStatusCode.Redirect, postLogin.StatusCode);
+        var loginLocation = postLogin.Headers.Location;
+        Assert.NotNull(loginLocation);
+        Assert.Equal("/dashboard", loginLocation!.IsAbsoluteUri ? loginLocation.AbsolutePath : loginLocation.OriginalString);
+
+        // 3. Verify authenticated dashboard renders Clara's profile
+        var dashboard = await client.GetAsync("/dashboard");
+        Assert.Equal(HttpStatusCode.OK, dashboard.StatusCode);
+        var dashboardHtml = await dashboard.Content.ReadAsStringAsync();
+        Assert.Contains("Clara Okafor", dashboardHtml);
     }
 
     [Fact]
@@ -171,6 +301,10 @@ public class AuthAndOwnershipTests
         Assert.Equal(HttpStatusCode.OK, dashboardResponse.StatusCode);
         var dashboardHtml = await dashboardResponse.Content.ReadAsStringAsync();
         Assert.Contains("Alice Mercer", dashboardHtml);
+        Assert.Contains("0-day streak", dashboardHtml);
+        Assert.Contains("/study", dashboardHtml);
+        Assert.Contains("/decks", dashboardHtml);
+        Assert.Contains("/stats", dashboardHtml);
         Assert.DoesNotContain("Bob Tanaka", dashboardHtml);
 
         // Logout via antiforgery-protected POST endpoint

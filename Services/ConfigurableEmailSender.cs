@@ -1,7 +1,8 @@
+using System.Collections.Concurrent;
 using System.Net;
-using System.Net.Mail;
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.Extensions.Options;
 using StudyBuddy.Models;
 
 namespace StudyBuddy.Services;
@@ -9,76 +10,133 @@ namespace StudyBuddy.Services;
 public interface IStudyBuddyEmailSender : IEmailSender<ApplicationUser>
 {
     bool IsConfigured { get; }
+    bool IsUsingResendTestDomain { get; }
 }
 
 /// <summary>
-/// Configurable SMTP email sender. When no SMTP provider is configured,
-/// it does not claim an email was sent and never logs raw tokens in production.
+/// Integrates ASP.NET Core Identity email workflows with IEmailService (Resend),
+/// adding short-window duplicate submission protection and safe HTML/plain-text handling.
 /// </summary>
 public sealed class ConfigurableEmailSender : IStudyBuddyEmailSender
 {
-    private readonly IOptions<EmailOptions> _options;
+    private static readonly TimeSpan DuplicateCooldown = TimeSpan.FromSeconds(30);
+
+    private readonly IEmailService _emailService;
     private readonly ILogger<ConfigurableEmailSender> _logger;
+    private readonly ConcurrentDictionary<string, DateTimeOffset> _recentSends = new(StringComparer.OrdinalIgnoreCase);
 
     public ConfigurableEmailSender(
-        IOptions<EmailOptions> options,
+        IEmailService emailService,
         ILogger<ConfigurableEmailSender> logger)
     {
-        _options = options;
+        _emailService = emailService;
         _logger = logger;
     }
 
-    public bool IsConfigured => _options.Value.IsConfigured;
+    public bool IsConfigured => _emailService.IsConfigured;
 
-    public Task SendConfirmationLinkAsync(ApplicationUser user, string email, string confirmationLink) =>
-        SendAsync(
-            email,
-            "Confirm your Study Buddy email",
-            $"Please confirm your Study Buddy account by <a href='{confirmationLink}'>clicking here</a>.");
+    public bool IsUsingResendTestDomain => _emailService.IsUsingResendTestDomain;
 
-    public Task SendPasswordResetLinkAsync(ApplicationUser user, string email, string resetLink) =>
-        SendAsync(
-            email,
-            "Reset your Study Buddy password",
-            $"Reset your Study Buddy password by <a href='{resetLink}'>clicking here</a>.");
-
-    public Task SendPasswordResetCodeAsync(ApplicationUser user, string email, string resetCode) =>
-        SendAsync(
-            email,
-            "Reset your Study Buddy password",
-            $"Your Study Buddy password reset code is: <strong>{WebUtility.HtmlEncode(resetCode)}</strong>");
-
-    private async Task SendAsync(string toEmail, string subject, string htmlBody)
+    public async Task SendConfirmationLinkAsync(
+        ApplicationUser user,
+        string email,
+        string confirmationLink)
     {
-        var cfg = _options.Value;
-        if (!cfg.IsConfigured)
+        var rawUrl = WebUtility.HtmlDecode(confirmationLink);
+        var key = BuildCooldownKey("confirm", email);
+        if (!TryAcquireSendWindow(key))
         {
-            _logger.LogWarning(
-                "Email provider is not configured. Email '{Subject}' was NOT sent.",
-                subject);
+            _logger.LogInformation("Duplicate confirmation email suppressed within cooldown window.");
             return;
         }
 
-        using var message = new MailMessage
-        {
-            From = new MailAddress(cfg.FromAddress!, cfg.FromName),
-            Subject = subject,
-            Body = htmlBody,
-            IsBodyHtml = true
-        };
-        message.To.Add(toEmail);
+        var idempotencyKey = BuildIdempotencyKey("confirm", email, rawUrl);
+        var result = await _emailService.SendEmailVerificationAsync(
+            email,
+            user.FullName,
+            rawUrl,
+            idempotencyKey);
 
-        using var client = new SmtpClient(cfg.SmtpHost!, cfg.SmtpPort)
+        if (!result.Succeeded)
         {
-            EnableSsl = cfg.UseSsl
-        };
+            ReleaseSendWindow(key);
+        }
+    }
 
-        if (!string.IsNullOrWhiteSpace(cfg.SmtpUsername))
+    public async Task SendPasswordResetLinkAsync(
+        ApplicationUser user,
+        string email,
+        string resetLink)
+    {
+        var rawUrl = WebUtility.HtmlDecode(resetLink);
+        var key = BuildCooldownKey("reset-link", email);
+        if (!TryAcquireSendWindow(key))
         {
-            client.Credentials = new NetworkCredential(cfg.SmtpUsername, cfg.SmtpPassword);
+            _logger.LogInformation("Duplicate password reset email suppressed within cooldown window.");
+            return;
         }
 
-        await client.SendMailAsync(message);
-    }
-}
+        var idempotencyKey = BuildIdempotencyKey("reset-link", email, rawUrl);
+        var result = await _emailService.SendPasswordResetAsync(
+            email,
+            user.FullName,
+            rawUrl,
+            idempotencyKey);
 
+        if (!result.Succeeded)
+        {
+            ReleaseSendWindow(key);
+        }
+    }
+
+    public async Task SendPasswordResetCodeAsync(
+        ApplicationUser user,
+        string email,
+        string resetCode)
+    {
+        var key = BuildCooldownKey("reset-code", email);
+        if (!TryAcquireSendWindow(key))
+        {
+            _logger.LogInformation("Duplicate password reset code email suppressed within cooldown window.");
+            return;
+        }
+
+        var safeCode = WebUtility.HtmlEncode(resetCode);
+        var result = await _emailService.SendAsync(new EmailMessage(
+            To: email,
+            Subject: "Your Study Buddy password reset code",
+            HtmlBody: $"<p>Your Study Buddy password reset code is: <strong>{safeCode}</strong></p>",
+            TextBody: $"Your Study Buddy password reset code is: {resetCode}",
+            IdempotencyKey: BuildIdempotencyKey("reset-code", email, resetCode),
+            Category: "password-reset"));
+
+        if (!result.Succeeded)
+        {
+            ReleaseSendWindow(key);
+        }
+    }
+
+    private static string BuildCooldownKey(string category, string email) =>
+        $"{category}:{email.Trim().ToLowerInvariant()}";
+
+    private static string BuildIdempotencyKey(string category, string email, string payload)
+    {
+        var bucket = DateTimeOffset.UtcNow.ToUnixTimeSeconds() / 30;
+        var hashBytes = SHA256.HashData(Encoding.UTF8.GetBytes($"{category}|{email.Trim().ToLowerInvariant()}|{payload}|{bucket}"));
+        return $"sb-{category}-{Convert.ToHexString(hashBytes)[..24].ToLowerInvariant()}";
+    }
+
+    private bool TryAcquireSendWindow(string key)
+    {
+        var now = DateTimeOffset.UtcNow;
+        if (_recentSends.TryGetValue(key, out var lastSent) && (now - lastSent) < DuplicateCooldown)
+        {
+            return false;
+        }
+
+        _recentSends[key] = now;
+        return true;
+    }
+
+    private void ReleaseSendWindow(string key) => _recentSends.TryRemove(key, out _);
+}

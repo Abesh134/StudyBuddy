@@ -16,6 +16,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<QuestionOption> QuestionOptions => Set<QuestionOption>();
     public DbSet<Attempt> Attempts => Set<Attempt>();
     public DbSet<ReviewState> ReviewStates => Set<ReviewState>();
+    public DbSet<EmailNotification> EmailNotifications => Set<EmailNotification>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -54,8 +55,16 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(d => d.SourceType)
                 .IsRequired();
 
+            entity.Property(d => d.DocumentFormat)
+                .IsRequired()
+                .HasDefaultValue(SourceDocumentFormat.PastedNotes);
+
             entity.Property(d => d.OriginalFileName)
                 .HasMaxLength(260);
+
+            entity.Property(d => d.UsedOcr)
+                .IsRequired()
+                .HasDefaultValue(false);
 
             entity.Property(d => d.CreatedAtUtc)
                 .IsRequired();
@@ -212,6 +221,46 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
 
             entity.HasIndex(r => r.NextReviewUtc)
                 .HasDatabaseName("IX_ReviewStates_NextReviewUtc");
+        });
+
+        builder.Entity<EmailNotification>(entity =>
+        {
+            entity.ToTable("EmailNotifications", t =>
+            {
+                t.HasCheckConstraint(
+                    "CK_EmailNotifications_AttemptCount",
+                    "[AttemptCount] >= 0");
+            });
+
+            entity.Property(n => n.UserId)
+                .IsRequired()
+                .HasMaxLength(450);
+
+            entity.Property(n => n.NotificationType)
+                .IsRequired()
+                .HasMaxLength(64);
+
+            entity.Property(n => n.ProviderMessageId)
+                .HasMaxLength(128);
+
+            entity.Property(n => n.CreatedAtUtc)
+                .IsRequired();
+
+            entity.Property(n => n.LastErrorCode)
+                .HasMaxLength(64);
+
+            entity.HasOne(n => n.User)
+                .WithMany()
+                .HasForeignKey(n => n.UserId)
+                .IsRequired()
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(n => new { n.UserId, n.NotificationType })
+                .IsUnique()
+                .HasDatabaseName("UX_EmailNotifications_UserId_NotificationType");
+
+            entity.HasIndex(n => new { n.Status, n.CreatedAtUtc })
+                .HasDatabaseName("IX_EmailNotifications_Status_CreatedAtUtc");
         });
     }
 }

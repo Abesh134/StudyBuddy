@@ -1,0 +1,335 @@
+@page "/decks/{deckId:int}"
+@attribute [Authorize]
+
+@using System.ComponentModel.DataAnnotations
+@using StudyBuddy.Models
+@using StudyBuddy.Services
+@using StudyBuddy.Services.Documents
+
+@inject IDeckService DeckService
+@inject NavigationManager NavigationManager
+
+<PageTitle>@(_deck is not null ? _deck.Title : "Deck Details") - Study Buddy</PageTitle>
+
+<div class="sb-container">
+    <ErrorMessage Message="@_error" OnRetry="LoadDeckAsync" OnDismiss="() => _error = null" />
+
+    @if (!string.IsNullOrWhiteSpace(_statusMessage))
+    {
+        <div role="status" class="sb-status-banner" style="margin-bottom:var(--sb-space-4);">
+            @_statusMessage
+        </div>
+    }
+
+    @if (_loading)
+    {
+        <LoadingSpinner Label="Loading deck details..." />
+    }
+    else if (_deck is null)
+    {
+        <EmptyState Title="Deck not found"
+                    Description="This deck does not exist or does not belong to your account."
+                    ActionText="Back to your decks"
+                    ActionHref="/decks" />
+    }
+    else
+    {
+        <div class="sb-page-header">
+            <div>
+                <div style="display:flex;flex-wrap:wrap;gap:0.45rem;margin-bottom:0.5rem;">
+                    <span class="sb-badge @(_deck.DocumentFormat == SourceDocumentFormat.PastedNotes ? "sb-badge-muted" : "sb-badge-blue")">
+                        @DocumentExtractionResult.GetFormatDisplayName(_deck.DocumentFormat)
+                    </span>
+                    @if (!string.IsNullOrWhiteSpace(_deck.OriginalFileName))
+                    {
+                        <span class="sb-badge sb-badge-muted">@_deck.OriginalFileName</span>
+                    }
+                    @if (_deck.SourcePageOrSlideCount.HasValue && _deck.SourcePageOrSlideCount.Value > 0)
+                    {
+                        <span class="sb-badge sb-badge-muted">
+                            @_deck.SourcePageOrSlideCount.Value @(_deck.DocumentFormat == SourceDocumentFormat.PowerPointPresentation ? "slides" : "pages")
+                        </span>
+                    }
+                    @if (_deck.UsedOcr)
+                    {
+                        <span class="sb-badge sb-badge-marker">OCR</span>
+                    }
+                    <span class="sb-badge @(_deck.CanStudy ? "sb-badge-success" : "sb-badge-muted")">
+                        @_deck.QuestionCount @(_deck.QuestionCount == 1 ? "question" : "questions")
+                    </span>
+                    @if (_deck.DueCount > 0)
+                    {
+                        <span class="sb-badge sb-badge-marker">@_deck.DueCount due</span>
+                    }
+                </div>
+
+                <h1 class="sb-page-title">@_deck.Title</h1>
+                <p class="sb-page-subtitle">
+                    Created @_deck.CreatedAtUtc.ToString("MMM d, yyyy") UTC
+                    &middot; Updated @_deck.UpdatedAtUtc.ToString("MMM d, yyyy") UTC
+                    @if (_deck.AccuracyPercent.HasValue)
+                    {
+                        <span> &middot; @_deck.AccuracyPercent.Value.ToString("F0")% accuracy (@_deck.AttemptCount attempts)</span>
+                    }
+                </p>
+            </div>
+
+            <div style="display:flex;flex-wrap:wrap;gap:0.65rem;align-items:center;">
+                <a class="sb-btn sb-btn-secondary" href="/decks">All Decks</a>
+
+                @if (_deck.CanStudy)
+                {
+                    <a class="sb-btn sb-btn-primary" href="/study/@_deck.Id">Study Deck &rarr;</a>
+                }
+                else
+                {
+                    <button type="button" class="sb-btn sb-btn-secondary" disabled aria-disabled="true" title="Generate questions before studying">
+                        Quiz unavailable
+                    </button>
+                }
+
+                <button type="button"
+                        class="sb-btn sb-btn-secondary"
+                        disabled
+                        aria-disabled="true"
+                        title="AI quiz generation will be enabled in Part 09">
+                    Generate Quiz (Part 09)
+                </button>
+
+                <button type="button"
+                        class="sb-btn sb-btn-ghost"
+                        style="color:var(--sb-error);"
+                        @onclick="() => _showDeleteConfirm = true">
+                    Delete
+                </button>
+            </div>
+        </div>
+
+        <div class="sb-dash-two-col">
+            <!-- Edit Form -->
+            <section class="sb-card sb-dash-enter">
+                <h2 style="font-size:1.15rem;margin-bottom:var(--sb-space-4);">Edit Deck</h2>
+
+                <EditForm Model="_editForm" OnValidSubmit="SaveChangesAsync">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary role="alert" />
+
+                    <div style="margin-bottom:var(--sb-space-4);">
+                        <label class="sb-auth-label" for="edit-title">Deck title</label>
+                        <InputText id="edit-title" class="sb-input" maxlength="150" @bind-Value="_editForm.Title" />
+                        <ValidationMessage For="() => _editForm.Title" />
+                    </div>
+
+                    @if (_deck.CanEditNotes)
+                    {
+                        <div style="margin-bottom:var(--sb-space-4);">
+                            <label class="sb-auth-label" for="edit-notes">Study notes</label>
+                            <InputTextArea id="edit-notes" class="sb-input" rows="12" @bind-Value="_editForm.NotesText" />
+                            <ValidationMessage For="() => _editForm.NotesText" />
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="sb-troubleshoot-box" style="margin-top:0;">
+                            <strong>Notes locked because questions exist</strong>
+                            <p style="margin:0.35rem 0 0;">
+                                Editing notes after questions are generated is disabled in MVP so verbatim source sentence highlights stay accurate.
+                                You can still rename the deck title here, or <a href="/decks/new" style="font-weight:700;">create a new deck</a> for revised notes.
+                            </p>
+                        </div>
+                    }
+
+                    <button type="submit" class="sb-btn sb-btn-primary" disabled="@_saving">
+                        @(_saving ? "Saving..." : "Save Changes")
+                    </button>
+                </EditForm>
+            </section>
+
+            <!-- Stored Notes Reference (Formatted, Raw, or Plain Text) -->
+            <aside class="sb-card sb-dash-enter">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;flex-wrap:wrap;margin-bottom:var(--sb-space-3);">
+                    <h2 style="font-size:1.1rem;margin:0;">Stored Source Notes</h2>
+                    <span class="sb-badge sb-badge-muted">@_deck.NotesText.Length.ToString("N0") chars</span>
+                </div>
+
+                <div class="sb-mode-tabs" role="tablist" aria-label="Stored notes view" style="margin-bottom:var(--sb-space-3);">
+                    <button type="button"
+                            role="tab"
+                            aria-selected="@(_notesView == NotesViewMode.Formatted ? "true" : "false")"
+                            class="sb-mode-tab @(_notesView == NotesViewMode.Formatted ? "is-active" : "")"
+                            @onclick="() => _notesView = NotesViewMode.Formatted">
+                        Formatted Preview
+                    </button>
+                    @if (!string.IsNullOrWhiteSpace(_deck.RawExtractedText))
+                    {
+                        <button type="button"
+                                role="tab"
+                                aria-selected="@(_notesView == NotesViewMode.Raw ? "true" : "false")"
+                                class="sb-mode-tab @(_notesView == NotesViewMode.Raw ? "is-active" : "")"
+                                @onclick="() => _notesView = NotesViewMode.Raw">
+                            Raw Extracted Text
+                        </button>
+                    }
+                    <button type="button"
+                            role="tab"
+                            aria-selected="@(_notesView == NotesViewMode.Canonical ? "true" : "false")"
+                            class="sb-mode-tab @(_notesView == NotesViewMode.Canonical ? "is-active" : "")"
+                            @onclick="() => _notesView = NotesViewMode.Canonical">
+                        Plain Text
+                    </button>
+                </div>
+
+                @if (_notesView == NotesViewMode.Formatted)
+                {
+                    <MarkdownPreview Markdown="@_deck.NotesText" AriaLabel="Formatted stored study notes" />
+                }
+                else if (_notesView == NotesViewMode.Raw && !string.IsNullOrWhiteSpace(_deck.RawExtractedText))
+                {
+                    <div class="sb-notes-preview">@_deck.RawExtractedText</div>
+                }
+                else
+                {
+                    <div class="sb-notes-preview">@_deck.NotesText</div>
+                }
+            </aside>
+        </div>
+    }
+</div>
+
+<ConfirmDialog IsOpen="@_showDeleteConfirm"
+               Title="Delete study deck?"
+               Message="@($"Permanently delete \"{_deck?.Title}\"? This will cascade delete all {_deck?.QuestionCount ?? 0} questions, attempts, and review states. This cannot be undone.")"
+               ConfirmText="Delete permanently"
+               CancelText="Cancel"
+               IsDestructive="true"
+               IsBusy="@_deleting"
+               OnConfirm="DeleteDeckAsync"
+               OnCancel="() => _showDeleteConfirm = false" />
+
+@code {
+    private enum NotesViewMode
+    {
+        Formatted,
+        Raw,
+        Canonical
+    }
+
+    [Parameter]
+    public int DeckId { get; set; }
+
+    private NotesViewMode _notesView = NotesViewMode.Formatted;
+    private bool _loading = true;
+    private bool _saving;
+    private bool _deleting;
+    private bool _showDeleteConfirm;
+    private string? _error;
+    private string? _statusMessage;
+    private DeckDetailDto? _deck;
+    private readonly EditDeckFormModel _editForm = new();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadDeckAsync();
+    }
+
+    private async Task LoadDeckAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _deck = await DeckService.GetDeckDetailAsync(DeckId);
+            if (_deck is not null)
+            {
+                _editForm.Title = _deck.Title;
+                _editForm.NotesText = _deck.NotesText;
+            }
+        }
+        catch (Exception)
+        {
+            _error = "Unable to load deck details right now.";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task SaveChangesAsync()
+    {
+        if (_deck is null || _saving)
+        {
+            return;
+        }
+
+        _saving = true;
+        _error = null;
+        _statusMessage = null;
+        try
+        {
+            var result = await DeckService.UpdateDeckAsync(
+                _deck.Id,
+                new UpdateDeckRequest(
+                    Title: _editForm.Title,
+                    NotesText: _deck.CanEditNotes ? _editForm.NotesText : null));
+
+            if (!result.Succeeded)
+            {
+                _error = result.ErrorMessage ?? "Unable to save changes.";
+                return;
+            }
+
+            _statusMessage = "Deck changes saved.";
+            await LoadDeckAsync();
+        }
+        catch (Exception)
+        {
+            _error = "An unexpected error occurred while updating the deck.";
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private async Task DeleteDeckAsync()
+    {
+        if (_deck is null || _deleting)
+        {
+            return;
+        }
+
+        _deleting = true;
+        _error = null;
+        try
+        {
+            var result = await DeckService.DeleteDeckAsync(_deck.Id);
+            if (!result.Succeeded)
+            {
+                _error = result.ErrorMessage ?? "Unable to delete deck.";
+                _showDeleteConfirm = false;
+                return;
+            }
+
+            NavigationManager.NavigateTo("/decks");
+        }
+        catch (Exception)
+        {
+            _error = "An unexpected error occurred while deleting the deck.";
+            _showDeleteConfirm = false;
+        }
+        finally
+        {
+            _deleting = false;
+        }
+    }
+
+    private sealed class EditDeckFormModel
+    {
+        [Required(ErrorMessage = "Deck title is required.")]
+        [MaxLength(150, ErrorMessage = "Deck title must be 150 characters or fewer.")]
+        public string Title { get; set; } = string.Empty;
+
+        public string NotesText { get; set; } = string.Empty;
+    }
+}

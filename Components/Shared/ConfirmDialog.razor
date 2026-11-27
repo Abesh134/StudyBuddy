@@ -1,0 +1,55 @@
+@if (IsOpen)
+{
+    <div class="sb-dialog-backdrop" role="presentation">
+        <div class="sb-dialog" role="dialog" aria-modal="true" aria-labelledby="@_titleId">
+            <h2 id="@_titleId" class="sb-dialog-title">@Title</h2>
+            <p class="sb-dialog-message">@Message</p>
+            <div class="sb-dialog-actions">
+                <button type="button"
+                        class="sb-btn sb-btn-secondary"
+                        disabled="@IsBusy"
+                        @onclick="OnCancel">
+                    @CancelText
+                </button>
+                <button type="button"
+                        class="sb-btn @(IsDestructive ? "sb-btn-danger" : "sb-btn-primary")"
+                        disabled="@IsBusy"
+                        @onclick="OnConfirm">
+                    @(IsBusy ? "Working..." : ConfirmText)
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private readonly string _titleId = $"sb-dialog-{Guid.NewGuid():N}";
+
+    [Parameter]
+    public bool IsOpen { get; set; }
+
+    [Parameter]
+    public string Title { get; set; } = "Confirm action";
+
+    [Parameter]
+    public string Message { get; set; } = "Are you sure you want to continue?";
+
+    [Parameter]
+    public string ConfirmText { get; set; } = "Confirm";
+
+    [Parameter]
+    public string CancelText { get; set; } = "Cancel";
+
+    [Parameter]
+    public bool IsDestructive { get; set; }
+
+    [Parameter]
+    public bool IsBusy { get; set; }
+
+    [Parameter]
+    public EventCallback OnConfirm { get; set; }
+
+    [Parameter]
+    public EventCallback OnCancel { get; set; }
+}
+

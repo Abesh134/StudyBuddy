@@ -1,0 +1,53 @@
+@page "/stats"
+@attribute [Authorize]
+
+@using StudyBuddy.Services
+
+@inject IDashboardService DashboardService
+
+<PageTitle>Stats - Study Buddy</PageTitle>
+
+<div class="sb-container">
+    <div class="sb-page-header">
+        <div>
+            <h1 class="sb-page-title">Learning Analytics</h1>
+            <p class="sb-page-subtitle">Personal accuracy, topic mastery, and spaced-repetition retention.</p>
+        </div>
+        <a class="sb-btn sb-btn-secondary" href="/dashboard">Back to Dashboard</a>
+    </div>
+
+    @if (_loading)
+    {
+        <LoadingSpinner Label="Loading your stats..." />
+    }
+    else if (_summary is not null)
+    {
+        <section class="sb-grid sb-grid-stats" aria-label="Personal metrics" style="margin-bottom:var(--sb-space-6);">
+            <StatCard Label="Total Decks" Value="@_summary.TotalDecks.ToString()" Accent="blue" />
+            <StatCard Label="Total Questions" Value="@_summary.TotalQuestions.ToString()" Accent="navy" />
+            <StatCard Label="Overall Accuracy"
+                      Value="@(_summary.OverallAccuracyPercent.HasValue ? $"{_summary.OverallAccuracyPercent.Value:F0}%" : "—")"
+                      Subtext="@(_summary.TotalAttempts > 0 ? $"{_summary.TotalAttempts} attempts" : "No quiz attempts yet")"
+                      Accent="success" />
+            <StatCard Label="Current Streak" Value="@($"{_summary.DailyStreakDays} days")" Accent="marker" />
+        </section>
+
+        <div class="sb-card">
+            <h2 style="font-size:1.15rem;margin-bottom:0.4rem;">Detailed Charts Coming in Part 12</h2>
+            <p style="margin:0;color:var(--sb-muted);">
+                Interactive Chart.js accuracy trends, retention curves, and topic mastery breakdowns will be enabled in Part 12 once quiz attempts and spaced-repetition sessions are active.
+            </p>
+        </div>
+    }
+</div>
+
+@code {
+    private bool _loading = true;
+    private DashboardSummaryDto? _summary;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _summary = await DashboardService.GetDashboardSummaryAsync();
+        _loading = false;
+    }
+}

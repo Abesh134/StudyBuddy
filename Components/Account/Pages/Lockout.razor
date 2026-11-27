@@ -2,9 +2,17 @@
 
 <PageTitle>Account locked - Study Buddy</PageTitle>
 
-<main style="max-width:520px;margin:2rem auto;padding:1.5rem;">
-    <h1>Account locked</h1>
-    <p>This account has been temporarily locked out due to multiple failed sign-in attempts. Please wait and try again later.</p>
-    <p><a href="/Account/Login">Return to log in</a></p>
-</main>
+<AuthPageShell>
+    <section class="sb-auth-single" aria-labelledby="lockout-heading">
+        <div class="sb-auth-brand">
+            <img src="/images/branding/logo.svg" alt="Study Buddy" width="132" height="28" />
+        </div>
 
+        <h1 id="lockout-heading" class="sb-auth-title">Account temporarily locked</h1>
+        <div class="sb-status-banner sb-status-banner--error">
+            This account has been temporarily locked due to multiple failed sign-in attempts. Please wait and try again later.
+        </div>
+
+        <a class="sb-btn sb-btn-secondary sb-auth-submit" href="/Account/Login">Return to sign in</a>
+    </section>
+</AuthPageShell>

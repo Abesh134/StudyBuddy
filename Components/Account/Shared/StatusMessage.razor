@@ -1,7 +1,7 @@
 @if (!string.IsNullOrEmpty(DisplayMessage))
 {
     var isError = DisplayMessage.StartsWith("Error", StringComparison.OrdinalIgnoreCase);
-    <div role="alert" style="padding:0.75rem 1rem;margin-bottom:1rem;border-radius:6px;border:1px solid @(isError ? "#DC2626" : "#15803D");color:@(isError ? "#DC2626" : "#15803D");background:@(isError ? "#FEF2F2" : "#F0FDF4");">
+    <div role="alert" class="sb-status-banner @(isError ? "sb-status-banner--error" : "")">
         @DisplayMessage
     </div>
 }
@@ -27,4 +27,3 @@
         }
     }
 }
-
